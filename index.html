@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ứng Dụng Tạo Ma Trận Đề Kiểm Tra</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+    tailwind.config = {
+        darkMode: 'class',
+        theme: {
+            extend: {
+                colors: {
+                    primary: '#5D5CDE',
+                    light: '#FFFFFF',
+                    dark: '#181818'
+                }
+            }
+        }
+    }
+</script>
+<style>
+    .matrix-cell {
+        transition: all 0.2s ease;
+        border: 2px solid #e5e7eb;
+    }
+    .matrix-cell:hover {
+        border-color: #5D5CDE;
+        background-color: #f8fafc;
+    }
+    .dark .matrix-cell:hover {
+        background-color: #374151;
+    }
+    .matrix-cell.filled {
+        background-color: #eff6ff;
+        border-color: #3b82f6;
+    }
+    .dark .matrix-cell.filled {
+        background-color: #1e3a8a;
+        border-color: #60a5fa;
+    }
+    .modal-overlay {
+        backdrop-filter: blur(4px);
+    }
+    /* Custom scrollbar for specification library */
+    #specificationModalBody::-webkit-scrollbar {
+        width: 8px;
+    }
+    #specificationModalBody::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    .dark #specificationModalBody::-webkit-scrollbar-track {
+        background: #2d3748;
+    }
+    #specificationModalBody::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 10px;
+    }
+    #specificationModalBody::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+</style>
+</head>
+<body class="bg-light dark:bg-dark text-gray-900 dark:text-gray-100 transition-colors duration-300">
+<!-- Header -->
+<header class="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700">
+    <div class="container mx-auto px-4 py-6">
+        <h1 class="text-3xl font-bold text-center text-primary">
+            <i class="fas fa-th-large mr-2"></i>
+            Ứng Dụng Tạo Ma Trận Đề Kiểm Tra
+        </h1>
+        <p class="text-center text-gray-600 dark:text-gray-400 mt-2">
+            Tạo ma trận đề kiểm tra và sinh câu hỏi tự động bằng AI Gemini
+        </p>
+    </div>
+</header>
+
+<main class="container mx-auto px-4 py-8 max-w-7xl">
+    <!-- Control Panel -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+        <div class="flex flex-wrap gap-4 justify-center">
+            <button onclick="showTopicModal()" class="btn-primary">
+                <i class="fas fa-plus mr-2"></i>Thêm Chủ đề
+            </button>
+            <button onclick="showScoreModal()" class="btn-outline">
+                <i class="fas fa-cog mr-2"></i>Thiết Lập Điểm Số
+            </button>
+            <button onclick="generateAITest()" class="btn-secondary">
+                <i class="fas fa-magic mr-2"></i>Tạo Đề Thi Bằng AI
+            </button>
+            <button onclick="exportMatrix()" class="btn-outline">
+                <i class="fas fa-download mr-2"></i>Xuất Ma Trận
+            </button>
+            <button onclick="exportExcel()" class="btn-outline">
+                <i class="fas fa-file-excel mr-2"></i>Xuất Excel
+            </button>
+            <button onclick="importMatrix()" class="btn-outline">
+                <i class="fas fa-upload mr-2"></i>Nhập Ma Trận
+            </button>
+            <button onclick="clearAll()" class="btn-danger">
+                <i class="fas fa-trash mr-2"></i>Xóa Tất Cả
+            </button>
+        </div>
+    </div>
+
+    <!-- Topics Management -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+        <h2 class="text-xl font-bold mb-4">
+            <i class="fas fa-list mr-2"></i>Quản lý Chủ đề
+        </h2>
+        <div id="topicsList" class="flex flex-wrap gap-2">
+            <!-- Topics will be displayed here -->
+        </div>
+    </div>
+
+    <!-- Matrix Section -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+        <h2 class="text-xl font-bold mb-4">
+            <i class="fas fa-table mr-2"></i>Ma Trận Đề
+        </h2>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">
+            Nhấp vào ô trong ma trận để xem chi tiết yêu cầu cần đạt.
+        </p>
+        <div class="overflow-x-auto">
+            <div id="matrixContainer" class="min-w-full">
+                <div id="matrixGrid" class="grid gap-2">
+                    <!-- Matrix will be generated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <h2 class="text-xl font-bold mb-4">
+            <i class="fas fa-chart-bar mr-2"></i>Bảng Tổng Kết
+        </h2>
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse">
+                <thead>
+                <tr class="bg-gray-50 dark:bg-gray-700">
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">Chủ đề</th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">
+                        Nhận biết<br>
+                        <span id="knowledgePercent" class="text-xs text-gray-500 dark:text-gray-400">(40%)</span>
+                    </th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">
+                        Thông hiểu<br>
+                        <span id="comprehensionPercent" class="text-xs text-gray-500 dark:text-gray-400">(40%)</span>
+                    </th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">
+                        Vận dụng<br>
+                        <span id="applicationPercent" class="text-xs text-gray-500 dark:text-gray-400">(20%)</span>
+                    </th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">Tổng</th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">Điểm</th>
+                </tr>
+                </thead>
+                <tbody id="summaryTableBody">
+                <!-- Summary data will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<!-- Topic Modal -->
+<div id="topicModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">Thêm Chủ đề mới</h3>
+            <button onclick="closeTopicModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <input type="text" id="topicNameInput" placeholder="Tên chủ đề"
+               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+        <div class="flex justify-end mt-4 space-x-2">
+            <button onclick="closeTopicModal()" class="btn-outline">Hủy</button>
+            <button onclick="addTopic()" class="btn-primary">Lưu Chủ đề</button>
+        </div>
+    </div>
+</div>
+
+<!-- Cell Detail Modal -->
+<div id="cellModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="cellModalTitle" class="text-lg font-bold">Chi tiết ô ma trận</h3>
+            <button onclick="closeCellModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="space-y-4 mb-4">
+            <div>
+                <label class="block text-sm font-medium mb-2">
+                    <i class="fas fa-list mr-1"></i>Trắc nghiệm 4 đáp án:
+                </label>
+                <input type="number" id="multipleChoiceCount" min="0" max="20"
+                       class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-2">
+                    <i class="fas fa-check-square mr-1"></i>Câu đúng/sai (1 câu = 4 ý):
+                </label>
+                <input type="number" id="trueFalseCount" min="0" max="10"
+                       class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-2">
+                    <i class="fas fa-edit mr-1"></i>Câu tự luận:
+                </label>
+                <input type="number" id="essayCount" min="0" max="10"
+                       class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+            </div>
+            <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md">
+                <div class="text-sm text-blue-700 dark:text-blue-300">
+                    <p><strong>Tổng câu hỏi:</strong> <span id="totalQuestions">0</span> câu</p>
+                    <p><strong>Tổng điểm:</strong> <span id="totalScore">0</span> điểm</p>
+                </div>
+            </div>
+        </div>
+        <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">
+                <i class="fas fa-map-marker-alt mr-1"></i>Vị trí câu hỏi trong đề:
+            </label>
+            <input type="text" id="questionPosition" placeholder="VD: Câu 1-5, Câu I.1-I.3, Phần A..."
+                   class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+        </div>
+        
+        <!-- Specification Library Button and Notes Textarea -->
+        <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">Ghi chú (Yêu cầu cần đạt):</label>
+            <button onclick="openSpecificationModal()" class="btn-secondary w-full mb-2">
+                <i class="fas fa-book mr-2"></i>Chọn từ Thư viện Đặc tả
+            </button>
+            <textarea id="cellNotes" rows="4" placeholder="Mô tả yêu cầu, nội dung cần kiểm tra... hoặc chọn từ thư viện"
+                      class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2">
+            <button onclick="closeCellModal()" class="btn-outline">Hủy</button>
+            <button onclick="saveCellData()" class="btn-primary">Lưu</button>
+        </div>
+    </div>
+</div>
+
+<!-- AI Test Generation Modal -->
+<div id="aiModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-screen overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">
+                <i class="fas fa-magic mr-2"></i>Đề Thi & Đáp Án Do AI Tạo
+            </h3>
+            <button onclick="closeAIModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="aiLoadingState" class="text-center py-8">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p class="text-gray-600 dark:text-gray-400">AI đang sáng tạo câu hỏi và đáp án... Vui lòng chờ trong giây lát.</p>
+        </div>
+        <div id="aiContent" class="hidden">
+            <div id="aiGeneratedTest" class="prose dark:prose-invert max-w-none mb-4">
+                <!-- AI generated content will appear here -->
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="regenerateTest()" class="btn-outline">
+                    <i class="fas fa-redo mr-2"></i>Tạo lại
+                </button>
+                <button onclick="exportTest()" class="btn-primary">
+                    <i class="fas fa-download mr-2"></i>Xuất Đề & Đáp án
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Score Settings Modal -->
+<div id="scoreModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">
+                <i class="fas fa-cog mr-2"></i>Thiết Lập Điểm Số
+            </h3>
+            <button onclick="closeScoreModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="space-y-4">
+            <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <h4 class="font-bold mb-3 text-blue-800 dark:text-blue-200">
+                    <i class="fas fa-calculator mr-2"></i>Điểm số mỗi loại câu hỏi
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Trắc nghiệm 4 đáp án:</label>
+                        <input type="number" id="scoreMultipleChoice" step="0.25" min="0" max="10" value="0.25"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">điểm</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Đúng/Sai (4 ý):</label>
+                        <input type="number" id="scoreTrueFalse" step="0.25" min="0" max="10" value="1"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">điểm</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Tự luận:</label>
+                        <input type="number" id="scoreEssay" step="0.25" min="0" max="10" value="1.0"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">điểm</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                <h4 class="font-bold mb-3 text-green-800 dark:text-green-200">
+                    <i class="fas fa-percentage mr-2"></i>Tỉ lệ mức độ mong muốn (%)
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Nhận biết:</label>
+                        <input type="number" id="percentKnowledge" min="0" max="100" value="40"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">%</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Thông hiểu:</label>
+                        <input type="number" id="percentComprehension" min="0" max="100" value="30"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">%</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Vận dụng:</label>
+                        <input type="number" id="percentApplication" min="0" max="100" value="30"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">%</span>
+                    </div>
+                </div>
+                <div class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    <span id="totalPercent">Tổng: 100%</span>
+                </div>
+            </div>
+
+            <div class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                <h4 class="font-bold mb-3 text-purple-800 dark:text-purple-200">
+                    <i class="fas fa-info-circle mr-2"></i>Thông tin tổng điểm
+                </h4>
+                <div id="scoreCalculation" class="text-sm space-y-1">
+                    <!-- Score calculation will be displayed here -->
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end mt-6 space-x-2">
+            <button onclick="closeScoreModal()" class="btn-outline">Hủy</button>
+            <button onclick="saveScoreSettings()" class="btn-primary">Lưu Thiết Lập</button>
+        </div>
+    </div>
+</div>
+
+<!-- Specification Library Modal -->
+<div id="specificationModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-3xl w-full mx-4 flex flex-col" style="height: 90vh;">
+        <div class="flex justify-between items-center mb-4 border-b pb-3 dark:border-gray-600">
+            <h3 id="specificationModalTitle" class="text-xl font-bold">Thư viện Đặc tả</h3>
+            <button onclick="closeSpecificationModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="mb-4">
+            <input type="text" id="specSearchInput" onkeyup="filterSpecifications()" placeholder="Tìm kiếm đặc tả theo từ khóa..."
+                   class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+        </div>
+        <div id="specificationModalBody" class="flex-grow overflow-y-auto pr-2">
+            <!-- Library content will be rendered here -->
+        </div>
+        <div class="flex justify-end mt-4 pt-4 border-t dark:border-gray-600 space-x-2">
+            <button onclick="closeSpecificationModal()" class="btn-outline">Hủy</button>
+            <button onclick="applySpecifications()" class="btn-primary">Áp dụng</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Success Modal -->
+<div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div class="text-center">
+            <div class="w-16 h-16 mx-auto mb-4 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                <i class="fas fa-check text-2xl text-green-600 dark:text-green-400"></i>
+            </div>
+            <h3 class="text-lg font-bold mb-2">Lưu thành công!</h3>
+            <p id="successMessage" class="text-gray-600 dark:text-gray-400 mb-4"></p>
+            <button onclick="closeSuccessModal()" class="btn-primary">Đóng</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Dark mode setup
+    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark')
+    } else {
+        document.documentElement.classList.remove('dark')
+    }
+
+    // --- NEW: SPECIFICATION LIBRARY DATA ---
+    const specificationLibraryData = [
+        {
+            grade: "LỚP 6",
+            content: [
+                {
+                    topic: "Mở đầu",
+                    units: [
+                        { name: "Giới thiệu về Khoa học tự nhiên", levels: { "Nhận biết": ["Nêu được khái niệm Khoa học tự nhiên.", "Trình bày được vai trò của Khoa học tự nhiên trong cuộc sống."] } },
+                        { name: "Các lĩnh vực chủ yếu của Khoa học tự nhiên", levels: { "Thông hiểu": ["Phân biệt được các lĩnh vực Khoa học tự nhiên dựa vào đối tượng nghiên cứu.", "Dựa vào các đặc điểm đặc trưng, phân biệt được vật sống và vật không sống."] } },
+                        { name: "Giới thiệu một số dụng cụ đo và quy tắc an toàn trong phòng thực hành", levels: { "Nhận biết": ["Trình bày được cách sử dụng một số dụng cụ đo thông thường khi học tập môn Khoa học tự nhiên (các dụng cụ đo chiều dài, thể tích, ...).", "Biết cách sử dụng kính lúp và kính hiển vi quang học.", "Nêu được các quy định an toàn khi học trong phòng thực hành."], "Thông hiểu": ["Phân biệt được các kí hiệu cảnh báo trong phòng thực hành.", "Đọc và phân biệt được các hình ảnh quy định an toàn phòng thực hành."] } }
+                    ]
+                },
+                {
+                    topic: "Các phép đo",
+                    units: [
+                        { name: "Đo chiều dài", levels: { "Nhận biết": ["Nêu được cách đo, đơn vị đo và dụng cụ thường dùng để đo chiều dài của một vật.", "Nêu được tầm quan trọng của việc ước lượng trước khi đo, ước lượng được chiều dài trong một số trường hợp đơn giản."], "Thông hiểu": ["Lấy được ví dụ chứng tỏ giác quan của chúng ta có thể cảm nhận sai một số hiện tượng."], "Vận dụng": ["Xác định được giới hạn đo (GHĐ) và độ chia nhỏ nhất (ĐCNN) của thước.", "Dùng thước để chỉ ra một số thao tác sai khi đo chiều dài và nêu được cách khắc phục một số thao tác sai đó.", "Đo được chiều dài của một vật bằng thước (thực hiện đúng thao tác, không yêu cầu tìm sai số)."], "Vận dụng cao": ["Thiết kế được phương án đo đường kính của ống trụ (ống nước, vòi máy nước), đường kính các trục hay các viên bi,.."] } },
+                        { name: "Đo khối lượng", levels: { "Nhận biết": ["Nêu được cách đo, đơn vị đo và dụng cụ thường dùng để đo khối lượng của một vật.", "Nêu được tầm quan trọng của việc ước lượng trước khi đo, ước lượng được khối lượng trong một số trường hợp đơn giản."], "Thông hiểu": ["Lấy được ví dụ chứng tỏ giác quan của chúng ta có thể cảm nhận sai một số hiện tượng.", "Hiểu được tầm quan trọng của việc ước lượng trước khi đo, ước lượng được khối lượng trong một số trường hợp đơn giản."], "Vận dụng": ["Xác định được giới hạn đo (GHĐ) và độ chia nhỏ nhất (ĐCNN) của cân.", "Dùng cân để chỉ ra một số thao tác sai khi đo khối lượng và nêu được cách khắc phục một số thao tác sai đó.", "Đo được khối lượng của một vật bằng cân (thực hiện đúng thao tác, không yêu cầu tìm sai số)."] } },
+                        { name: "Đo thời gian", levels: { "Nhận biết": ["Nêu được cách đo, đơn vị đo và dụng cụ thường dùng để đo thời gian.", "Nêu được tầm quan trọng của việc ước lượng trước khi đo, ước lượng được thời gian trong một số trường hợp đơn giản."], "Thông hiểu": ["Hiểu được tầm quan trọng của việc ước lượng trước khi đo, ước lượng được thời gian trong một số trường hợp đơn giản."], "Vận dụng": ["Dùng đồng hồ để chỉ ra một số thao tác sai khi đo thời gian và nêu được cách khắc phục một số thao tác sai đó.", "Đo được thời gian bằng đồng hồ (thực hiện đúng thao tác, không yêu cầu tìm sai số)."] } },
+                        { name: "Thang nhiệt độ Celsius Đo nhiệt độ", levels: { "Nhận biết": ["Phát biểu được: Nhiệt độ là số đo độ “nóng”, “lạnh” của vật.", "Nêu được cách xác định nhiệt độ trong thang nhiệt độ Celsius.", "Nêu được sự nở vì nhiệt của chất lỏng được dùng làm cơ sở để đo nhiệt độ.", "Nêu được tầm quan trọng của việc ước lượng trước khi đo, ước lượng được nhiệt độ trong một số trường hợp đơn giản."], "Thông hiểu": ["Lấy được ví dụ chứng tỏ giác quan của chúng ta có thể cảm nhận sai một số hiện tượng.", "Hiểu được tầm quan trọng của việc ước lượng trước khi đo, ước lượng được nhiệt độ trong một số trường hợp đơn giản."], "Vận dụng": ["Xác định được giới hạn đo (GHĐ) và độ chia nhỏ nhất (ĐCNN) của mỗi loại nhiệt kế.", "Đo được nhiệt độ bằng nhiệt kế (thực hiện đúng thao tác, không yêu cầu tìm sai số)."], "Vận dụng cao": ["Thiết lập được biểu thức quy đổi nhiệt độ từ thang nhiệt độ Celsius sang thang nhiệt độ Fahrenheit, Kelvin và ngược lại."] } },
+                        { name: "Đo thể tích", levels: { "Nhận biết": ["Nêu được cách đo, đơn vị đo và dụng cụ thường dùng để đo thể tích.", "Nêu được tầm quan trọng của việc ước lượng trước khi đo, ước lượng được thể tích trong một số trường hợp đơn giản."], "Thông hiểu": ["Hiểu được tầm quan trọng của việc ước lượng trước khi đo, ước lượng được thể tích trong một số trường hợp đơn giản."], "Vận dụng": ["Xác định được giới hạn đo (GHĐ) và độ chia nhỏ nhất (ĐCNN) của bình chia độ.", "Dùng bình chia độ để chỉ ra một số thao tác sai khi đo thể tích và nêu được cách khắc phục một số thao tác sai đó.", "Đo được thể tích của một lượng chất lỏng bằng bình chia độ (thực hiện đúng thao tác, không yêu cầu tìm sai số).", "Xác định được thể tích của vật rắn không thấm nước bằng bình chia độ, bình tràn (như hòn đá, đinh ốc...)"] } }
+                    ]
+                },
+                {
+                    topic: "Vật sống",
+                    units: [
+                        { name: "Tế bào – đơn vị cơ sở của sự sống", levels: { "Nhận biết": ["Nêu được khái niệm tế bào, chức năng của tế bào.", "Nêu được hình dạng và kích thước của một số loại tế bào.", "Nêu được ý nghĩa của sự lớn lên và sinh sản của tế bào.", "Nhận biết được lục lạp là bào quan thực hiện chức năng quang hợp ở cây xanh."], "Thông hiểu": ["Trình bày được cấu tạo tế bào với 3 thành phần chính (màng tế bào, tế bào chất và nhân tế bào).", "Trình bày được chức năng của mỗi thành phần chính của tế bào (màng tế bào, chất tế bào, nhân tế bào).", "Nhận biết được tế bào là đơn vị cấu trúc của sự sống.", "Phân biệt được tế bào động vật, tế bào thực vật; tế bào nhân thực, tế bào nhân sơ thông qua quan sát hình ảnh.", "Dựa vào sơ đồ, nhận biết được sự lớn lên và sinh sản của tế bào (từ 1 tế bào -> 2 tế bào -> 4 tế bào... -> n tế bào)."], "Vận dụng": ["Thực hành quan sát tế bào lớn bằng mắt thường và tế bào nhỏ dưới kính lúp và kính hiển vi quang học."] } },
+                        { name: "Từ tế bào đến cơ thể", levels: { "Thông hiểu": ["Thông qua hình ảnh, nêu được quan hệ từ tế bào hình thành nên mô, cơ quan, hệ cơ quan và cơ thể (từ tế bào đến mô, từ mô đến cơ quan, từ cơ quan đến hệ cơ quan, từ hệ cơ quan đến cơ thể). Từ đó, nêu được các khái niệm mô, cơ quan, hệ cơ quan, cơ thể. Lấy được các ví dụ minh hoạ.", "Nhận biết được cơ thể đơn bào và cơ thể đa bào thông qua hình ảnh. Lấy được ví dụ minh hoạ (cơ thể đơn bào: vi khuẩn, tảo đơn bào, ...; cơ thể đa bào: thực vật, động vật,...)."], "Vận dụng": ["Thực hành: Quan sát và vẽ được hình cơ thể đơn bào (tảo, trùng roi, ...);", "Thực hành: Quan sát và mô tả được các cơ quan cấu tạo cây xanh;", "Thực hành: Quan sát mô hình và mô tả được cấu tạo cơ thể người."] } }
+                    ]
+                },
+                {
+                    topic: "Đa dạng thế giới sống",
+                    units: [
+                        { name: "Phân loại thế giới sống", levels: { "Nhận biết": ["Nhận biết được sinh vật có hai cách gọi tên: tên địa phương và tên khoa học."], "Thông hiểu": ["Nêu được sự cần thiết của việc phân loại thế giới sống.", "Dựa vào sơ đồ, nhận biết được năm giới sinh vật. Lấy được ví dụ minh hoạ cho mỗi giới.", "Dựa vào sơ đồ, phân biệt được các nhóm phân loại từ nhỏ tới lớn theo trật tự: loài, chi, họ, bộ, lớp, ngành, giới.", "Lấy được ví dụ chứng minh thế giới sống đa dạng về số lượng loài và đa dạng về môi trường sống."], "Vận dụng": ["Thông qua ví dụ nhận biết được cách xây dựng khoá lưỡng phân và thực hành xây dựng được khoá lưỡng phân với đối tượng sinh vật."] } },
+                        { name: "Virus và vi khuẩn", levels: { "Nhận biết": ["Nêu được một số bệnh do virus và vi khuẩn gây ra."], "Thông hiểu": ["Quan sát hình ảnh và mô tả được hình dạng và cấu tạo đơn giản của virus (gồm vật chất di truyền và lớp vỏ protein) và vi khuẩn.", "Phân biệt được virus và vi khuẩn (chưa có cấu tạo tế bào và đã có cấu tạo tế bào).", "Dựa vào hình thái, nhận ra được sự đa dạng của vi khuẩn.", "Trình bày được một số cách phòng và chống bệnh do virus và vi khuẩn gây ra.", "Nêu được một số vai trò và ứng dụng virus và vi khuẩn trong thực tiễn."], "Vận dụng": ["Thực hành quan sát và vẽ được hình vi khuẩn quan sát được dưới kính hiển vi quang học.", "Vận dụng được hiểu biết về virus và vi khuẩn vào giải thích một số hiện tượng trong thực tiễn (ví dụ: vì sao thức ăn để lâu bị ôi thiu và không nên ăn thức ăn ôi thiu, ...)"], "Vận dụng cao": ["Biết cách làm sữa chua."] } },
+                        { name: "Đa dạng nguyên sinh vật", levels: { "Nhận biết": ["Nêu được một số bệnh do nguyên sinh vật gây nên."], "Thông hiểu": ["Nhận biết được một số đối tượng nguyên sinh vật thông qua quan sát hình ảnh, mẫu vật (ví dụ: trùng roi, trùng đế giày, trùng biến hình, tảo silic, tảo lục đơn bào, ...).", "Dựa vào hình thái, nêu được sự đa dạng của nguyên sinh vật.", "Trình bày được cách phòng và chống bệnh do nguyên sinh vật gây ra."], "Vận dụng": ["Thực hành quan sát và vẽ được hình nguyên sinh vật dưới kính lúp hoặc kính hiển vi."] } },
+                        { name: "Đa dạng nấm", levels: { "Nhận biết": ["Nêu được một số bệnh do nấm gây ra."], "Thông hiểu": ["Nhận biết được một số đại diện nấm thông qua quan sát hình ảnh, mẫu vật (nấm đơn bào, đa bào. Một số đại diện phổ biến: nấm đảm, nấm túi, ...). Dựa vào hình thái, trình bày được sự đa dạng của nấm.", "Trình bày được vai trò của nấm trong tự nhiên và trong thực tiễn (nấm được trồng làm thức ăn, dùng làm thuốc,...).", "Trình bày được cách phòng và chống bệnh do nấm gây ra."], "Vận dụng": ["Thông qua thực hành, quan sát và vẽ được hình nấm (quan sát bằng mắt thường hoặc kính lúp)."], "Vận dụng cao": ["Vận dụng được hiểu biết về nấm vào giải thích một số hiện tượng trong đời sống như kĩ thuật trồng nấm, nấm ăn được, nấm độc, ..."] } },
+                        { name: "Đa dạng thực vật", levels: { "Thông hiểu": ["Dựa vào sơ đồ, hình ảnh, mẫu vật, phân biệt được các nhóm thực vật: Thực vật không có mạch (Rêu); Thực vật có mạch, không có hạt (Dương xi); Thực vật có mạch, có hạt (Hạt trần); Thực vật có mạch, có hạt, có hoa (Hạt kín).", "Trình bày được vai trò của thực vật trong đời sống và trong tự nhiên: làm thực phẩm, đồ dùng, bảo vệ môi trường (trồng và bảo vệ cây xanh trong thành phố, trồng cây gây rừng, ...)."], "Vận dụng": ["Quan sát hình ảnh, mẫu vật thực vật và phân chia được thành các nhóm thực vật theo các tiêu chí phân loại đã học."] } },
+                        { name: "Đa dạng động vật", levels: { "Nhận biết": ["Nêu được một số tác hại của động vật trong đời sống."], "Thông hiểu": ["Phân biệt được hai nhóm động vật không xương sống và có xương sống. Lấy được ví dụ minh hoạ.", "Nhận biết được các nhóm động vật không xương sống dựa vào quan sát hình ảnh hình thái (hoặc mẫu vật, mô hình) của chúng (Ruột khoang, Giun; Thân mềm, Chân khớp). Gọi được tên một số con vật điển hình.", "Nhận biết được các nhóm động vật có xương sống dựa vào quan sát hình ảnh hình thái (hoặc mẫu vật, mô hình) của chúng (Cá, Lưỡng cư, Bò sát, Chim, Thú). Gọi được tên một số con vật điển hình."], "Vận dụng": ["Thực hành quan sát (hoặc chụp ảnh) và kể được tên một số động vật quan sát được ngoài thiên nhiên."] } },
+                        { name: "Vai trò của đa dạng sinh học trong tự nhiên", levels: { "Nhận biết": ["Nêu được vai trò của đa dạng sinh học trong tự nhiên và trong thực tiễn (làm thuốc, làm thức ăn, chỗ ở, bảo vệ môi trường,)"] } },
+                        { name: "Bảo vệ đa dạng sinh học", levels: { "Vận dụng": ["Giải thích được vì sao cần bảo vệ đa dạng sinh học."] } },
+                        { name: "Tìm hiểu sinh vật ngoài thiên nhiên", levels: { "Nhận biết": ["Nhận biết được vai trò của sinh vật trong tự nhiên (Ví dụ, cây bóng mát, điều hòa khí hậu, làm sạch môi trường, làm thức ăn cho động vật, ...)."], "Vận dụng": ["Sử dụng được khoá lưỡng phân để phân loại một số nhóm sinh vật.", "Quan sát và phân biệt được một số nhóm thực vật ngoài thiên nhiên.", "Chụp ảnh và làm được bộ sưu tập ảnh về các nhóm sinh vật (thực vật, động vật có xương sống, động vật không xương sống).", "Làm và trình bày được báo cáo đơn giản về kết quả tìm hiểu sinh vật ngoài thiên nhiên."], "Vận dụng cao": ["Thực hiện được một số phương pháp tìm hiểu sinh vật ngoài thiên nhiên: quan sát bằng mắt thường, kính lúp, ống nhòm; ghi chép, đo đếm, nhận xét và rút ra kết luận."] } }
+                    ]
+                },
+                {
+                    topic: "Năng lượng và sự biến đổi",
+                    units: [
+                        { name: "Lực và tác dụng của lực", levels: { "Nhận biết": ["Lấy được ví dụ để chứng tỏ lực là sự đẩy hoặc sự kéo.", "Nêu được đơn vị lực đo lực.", "Nhận biết được dụng cụ đo lục là lực kế.", "Lấy được ví dụ về tác dụng của lực làm thay đổi tốc độ.", "Lấy được ví dụ về tác dụng của lực làm thay đổi hướng chuyển động.", "Lấy được ví dụ về tác dụng của lực làm biến dạng vật."], "Thông hiểu": ["Biểu diễn được một lực bằng một mũi tên có điểm đặt tại vật chịu tác dụng lực, có độ lớn và theo hướng của sự kéo hoặc đẩy.", "Biết cách sử dụng lực kế để đo lực (ước lượng độ lớn lực tác dụng lên vật, chọn lực kế thích hợp, tiến hành đúng thao tác đo, đọc giá trị của lực trên lực kế)."], "Vận dụng": ["Biểu diễn được lực tác dụng lên 1 vật trong thực tế và chỉ ra tác dụng của lực trong trường hợp đó."] } },
+                        { name: "Lực tiếp xúc và lực không tiếp xúc", levels: { "Nhận biết": ["Lấy được ví dụ về lực tiếp xúc.", "Lấy được vi dụ về lực không tiếp xúc.", "Nêu được lực không tiếp xúc xuất hiện khi vật (hoặc đối tượng) gây ra lực không có sự tiếp xúc với vật (hoặc đối tượng) chịu tác dụng của lực."], "Thông hiểu": ["Chỉ ra được lực tiếp xúc và lực không tiếp xúc.", "Nêu được lực không tiếp xúc xuất hiện khi vật (hoặc đối tượng) gây ra lực không có sự tiếp xúc với vật (hoặc đối tượng) chịu tác dụng của lực; lấy được ví dụ về lực không tiếp xúc."] } },
+                        { name: "Ma sát", levels: { "Nhận biết": ["Kể tên được ba loại lực ma sát.", "Lấy được ví dụ về sự xuất hiện của lực ma sát nghỉ.", "Lấy được ví dụ về sự xuất hiện của lực ma sát lăn.", "Lấy được ví dụ về sự xuất hiện của lực ma sát trượt."], "Thông hiểu": ["Chỉ ra được nguyên nhân gây ra lực ma sát.", "Nêu được khái niệm về lực ma sát trượt (ma sát lăn, ma sát nghỉ). Cho ví dụ.", "Phân biệt được lực ma sát nghỉ, lực ma sát trượt, lực ma sát lăn."], "Vận dụng": ["Chỉ ra được tác dụng cản trở hay tác dụng thúc đẩy chuyển động của lực ma sát nghỉ (trượt, lăn) trong trường hợp thực tế.", "Lấy được ví dụ về một số ảnh hưởng của lực ma sát trong an toàn giao thông đường bộ."] } },
+                        { name: "Lực cản của nước", levels: { "Nhận biết": ["Lấy được ví dụ vật chịu tác dụng của lực cản khi chuyển động trong môi trường (nước hoặc không khí)."], "Thông hiểu": ["Chỉ ra được chiều của lực cản tác dụng lên vật chuyển động trong môi trường."], "Vận dụng": ["Lấy được ví dụ thực tế và giải thích được khi vật chuyển động trong môi trường nào thì vật chịu tác dụng của lực cản môi trường đó."] } },
+                        { name: "Khối lượng và trọng lượng", levels: { "Nhận biết": ["Nêu được khái niệm về khối lượng.", "Nêu được khái niệm lực hấp dẫn.", "Nêu được khái niệm trọng lượng."], "Thông hiểu": ["Đọc và giải thích được số chỉ về trọng lượng, khối lượng ghi trên các nhãn hiệu của sản phẩm tên thị trường.", "Giải thích được một số hiện tượng thực tế liên quan đến lực hấp dẫn, trọng lực."], "Vận dụng": ["Xác định được trọng lượng của vật khi biết khối lượng của vật hoặc ngược lại"] } },
+                        { name: "Biến dạng của lò xo", levels: { "Nhận biết": ["Nhận biết được khi nào lực đàn hồi xuất hiện.", "Lấy được một số ví dụ về vật có khả năng đàn hồi tốt, kém.", "Kể tên được một số ứng dụng của vật đàn hồi."], "Thông hiểu": ["Chỉ ra được phương, chiều của lực đàn hồi khi vật chịu lực tác dụng.", "Chứng tỏ được độ giãn của lò xo treo thẳng đứng tỉ lệ với khối lượng của vật treo."], "Vận dụng": ["Giải thích được một số hiện tượng thực tế về: nguyên nhân biến dạng của vật rắn; lò xo mất khả năng trở lại hình dạng ban đầu; ứng dụng của lực đàn hồi trong kĩ thuật."] } }
+                    ]
+                },
+                {
+                    topic: "Năng lượng",
+                    units: [
+                        { name: "Khái niệm về năng lượng & Một số dạng năng lượng", levels: { "Nhận biết": ["Chỉ ra được một số hiện tượng trong tự nhiên hay một số ứng dụng khoa học kĩ thuật thể hiện năng lượng đặc trưng cho khả năng tác dụng lực.", "Kể tên được một số nhiên liệu thường dùng trong thực tế.", "Kể tên được một số loại năng lượng."], "Thông hiểu": ["Nêu được nhiên liệu là vật liệu giải phóng năng lượng, tạo ra nhiệt và ánh sáng khi bị đốt cháy. Lấy được ví dụ minh họa.", "Phân biệt được các dạng năng lượng.", "Chứng minh được năng lượng đặc trưng cho khả năng tác dụng lực."], "Vận dụng": ["Giải thích được một số vật liệu trong thực tế có khả năng giải phóng năng lượng lớn, nhỏ.", "So sánh và phân tích được vật có năng lượng lớn sẽ có khả năng sinh ra lực tác dụng mạnh lên vật khác."] } },
+                        { name: "Sự chuyển hoá năng lượng", levels: { "Nhận biết": ["Chỉ ra được một số ví dụ trong thực tế về sự truyền năng lượng giữa các vật.", "Phát biểu được định luật bảo toàn và chuyển hóa năng lượng."], "Thông hiểu": ["Nêu được định luật bảo toàn năng lượng và lấy được ví dụ minh hoạ.", "Giải thích được các hiện tượng trong thực tế có sự chuyển hóa năng lượng chuyển từ dạng này sang dạng khác, từ vật này sang vật khác."], "Vận dụng": ["Vận dụng được định luật bảo toàn và chuyển hóa năng lượng để giải thích một số hiện tượng trong tự nhiên và ứng dụng của định luật trong khoa học kĩ thuật.", "Lấy được ví dụ thực tế về ứng dụng trong kĩ thuật về sự truyền nhiệt và giải thích được."] } },
+                        { name: "Năng lượng hao phí, Năng lượng tái tạo, Tiết kiệm năng lượng", levels: { "Nhận biết": ["Lấy được ví dụ về sự truyền năng lượng từ vật này sang vật khác từ dạng này sang dạng khác thì năng lượng không được bảo toàn mà xuất hiện một năng lượng hao phí trong quá trình truyền và biến đổi.", "Chỉ ra được một số ví dụ về sử dụng năng lượng tái tạo thường dùng trong thực tế."], "Thông hiểu": ["Nêu được sự truyền năng lượng từ vật này sang vật khác từ dạng này sang dạng khác thì năng lượng không được bảo toàn mà xuất hiện một năng lượng hao phí trong quá trình truyền và biến đổi. Lấy được ví dụ thực tế."], "Vận dụng": ["Đề xuất biện pháp và vận dụng thực tế việc sử dụng nguồn năng lượng tiết kiệm và hiệu quả."] } }
+                    ]
+                },
+                {
+                    topic: "Trái đất và bầu trời",
+                    units: [
+                        { name: "Chuyển động nhìn thấy của Mặt Trời", levels: { "Nhận biết": ["Mô tả được quy luật chuyển động của Mặt Trời hằng ngày quan sát thấy."], "Thông hiểu": ["Giải thích được quy luật chuyển động mọc, lặn của Mặt Trời."], "Vận dụng": ["Giải thích quy luật chuyển động của Trái Đất, Mặt Trời, Mặt Trăng"] } },
+                        { name: "Chuyển động nhìn thấy của Mặt Trăng", levels: { "Nhận biết": ["Nêu được các pha của Mặt Trăng trong Tuần Trăng."], "Thông hiểu": ["Giải thích được các pha của Mặt Trăng trong Tuần Trăng."], "Vận dụng": ["Thiết kế mô hình thực tế bằng vẽ hình, phần mền thông dụng để giải thích được một số hình dạng nhìn thấy của Mặt Trăng trong Tuần Trăng."] } },
+                        { name: "Hệ Mặt Trời & Ngân Hà", levels: { "Nhận biết": ["Nêu được Mặt Trời và sao là các thiên thể phát sáng; Mặt Trăng, các hành tinh và sao chổi phản xạ ánh sáng Mặt Trời.", "Nêu được hệ Mặt Trời là một phần nhỏ của Ngân Hà."], "Thông hiểu": ["Mô tả được sơ lược cấu trúc của hệ Mặt Trời, nêu được các hành tinh cách Mặt Trời các khoảng cách khác nhau và có chu kì quay khác nhau.", "Giải thích được hình ảnh quan sát thấy về sao chổi.", "Giải thích được hệ Mặt Trời là một phần nhỏ của Ngân Hà."] } }
+                    ]
+                }
+            ]
+        },
+        {
+            grade: "LỚP 7",
+            content: [
+                {
+                    topic: "Mở đầu",
+                    units: [{ name: "Mở đầu", levels: { "Nhận biết": ["Trình bày được một số phương pháp và kĩ năng trong học tập môn Khoa học tự nhiên"], "Thông hiểu": ["Thực hiện được các kĩ năng tiến trình: quan sát, phân loại, liên kết, đo, dự báo.", "Sử dụng được một số dụng cụ đo (trong nội dung môn Khoa học tự nhiên 7)."], "Vận dụng": ["Làm được báo cáo, thuyết trình."] } }]
+                },
+                {
+                    topic: "Sơ lược về bảng tuần hoàn các nguyên tố hoá học",
+                    units: [{ name: "Sơ lược về bảng tuần hoàn các nguyên tố hoá học", levels: { "Nhận biết": ["Nêu được các nguyên tắc xây dựng bảng tuần hoàn các nguyên tố hoá học.", "Mô tả được cấu tạo bảng tuần hoàn gồm: ô, nhóm, chu kì."], "Thông hiểu": ["Sử dụng được bảng tuần hoàn để chỉ ra các nhóm nguyên tố/nguyên tố kim loại, các nhóm nguyên tố/nguyên tố phi kim, nhóm nguyên tố khí hiếm trong bảng tuần hoàn."] } }]
+                },
+                {
+                    topic: "Phân tử",
+                    units: [
+                        { name: "Phân tử; đơn chất; hợp chất", levels: { "Nhận biết": ["Nêu được khái niệm phân tử, đơn chất, hợp chất."], "Thông hiểu": ["Đưa ra được một số ví dụ về đơn chất và hợp chất.", "Tính được khối lượng phân tử theo đơn vị amu."] } },
+                        { name: "Giới thiệu về liên kết hoá học (ion, cộng hoá trị)", levels: { "Thông hiểu": ["*Nêu được mô hình sắp xếp electron trong vỏ nguyên tử của một số nguyên tố khí hiếm; sự hình thành liên kết cộng hoá trị theo nguyên tắc dùng chung electron để tạo ra lớp vỏ electron của nguyên tố khí hiếm (Áp dụng được cho các phân tử đơn giản như H2, Cl2, NH3, H2O, CO2, N2,….).", "*Nêu được được sự hình thành liên kết ion theo nguyên tắc cho và nhận electron để tạo ra ion có lớp vỏ electron của nguyên tố khí hiếm (Áp dụng cho phân tử đơn giản như NaCl, MgO,…).", "Chỉ ra được sự khác nhau về một số tính chất của chất ion và chất cộng hoá trị."] } },
+                        { name: "Hoá trị; công thức hoá học", levels: { "Nhận biết": ["Trình bày được khái niệm về hoá trị (cho chất cộng hoá trị). Cách viết công thức hoá học.", "Nêu được mối liên hệ giữa hoá trị của nguyên tố với công thức hoá học."], "Thông hiểu": ["Viết được công thức hoá học của một số chất và hợp chất đơn giản thông dụng.", "Tính được phần trăm (%) nguyên tố trong hợp chất khi biết công thức hoá học của hợp chất."], "Vận dụng": ["Xác định được công thức hoá học của hợp chất dựa vào phần trăm (%) nguyên tố và khối lượng phân tử."] } }
+                    ]
+                },
+                {
+                    topic: "Trao đổi chất và chuyển hoá năng lượng ở sinh vật",
+                    units: [
+                        { name: "Khái quát trao đổi chất và chuyển hoá năng lượng", levels: { "Nhận biết": ["Phát biểu được khái niệm trao đổi chất và chuyển hoá năng lượng.", "Nêu được vai trò trao đổi chất và chuyển hoá năng lượng trong cơ thể."] } },
+                        { name: "Chuyển hoá năng lượng ở tế bào (Quang hợp, Hô hấp)", levels: { "Nhận biết": ["Nêu được một số yếu tố chủ yếu ảnh hưởng đến quang hợp, hô hấp tế bào."], "Thông hiểu": ["Mô tả được một cách tổng quát quá trình quang hợp ở tế bào lá cây: Nêu được vai trò lá cây với chức năng quang hợp. Nêu được khái niệm, nguyên liệu, sản phẩm của quang hợp. Viết được phương trình quang hợp (dạng chữ). Vẽ được sơ đồ diễn tả quang hợp diễn ra ở lá cây, qua đó nêu được quan hệ giữa trao đổi chất và chuyển hoá năng lượng.", "Mô tả được một cách tổng quát quá trình hô hấp ở tế bào (ở thực vật và động vật): Nêu được khái niệm; viết được phương trình hô hấp dạng chữ; thể hiện được hai chiều tổng hợp và phân giải."], "Vận dụng": ["Vận dụng hiểu biết về quang hợp để giải thích được ý nghĩa thực tiễn của việc trồng và bảo vệ cây xanh.", "Nêu được một số vận dụng hiểu biết về hô hấp tế bào trong thực tiễn (ví dụ: bảo quản hạt cần phơi khô,...)."], "Vận dụng cao": ["Tiến hành được thí nghiệm chứng minh quang hợp ở cây xanh.", "Tiến hành được thí nghiệm về hô hấp tế bào ở thực vật thông qua sự nảy mầm của hạt."] } },
+                        { name: "Trao đổi khí", levels: { "Thông hiểu": ["Sử dụng hình ảnh để mô tả được quá trình trao đổi khí qua khí khổng của lá.", "Dựa vào hình vẽ mô tả được cấu tạo của khí khổng, nêu được chức năng của khí khổng.", "Dựa vào sơ đồ khái quát mô tả được con đường đi của khí qua các cơ quan của hệ hô hấp ở động vật (ví dụ ở người)"] } },
+                        { name: "Trao đổi nước và các chất dinh dưỡng ở sinh vật", levels: { "Nhận biết": ["Nêu được vai trò của nước và các chất dinh dưỡng đối với cơ thể sinh vật.", "Nêu được vai trò thoát hơi nước ở lá và hoạt động đóng, mở khí khổng trong quá trình thoát hơi nước;", "Nêu được một số yếu tố chủ yếu ảnh hưởng đến trao đổi nước và các chất dinh dưỡng ở thực vật;"], "Thông hiểu": ["Dựa vào sơ đồ (hoặc mô hình) nêu được thành phần hoá học và cấu trúc, tính chất của nước.", "Mô tả được quá trình trao đổi nước và các chất dinh dưỡng, lấy được ví dụ ở thực vật và động vật, cụ thể:", "Dựa vào sơ đồ đơn giản mô tả được con đường hấp thụ, vận chuyển nước và khoáng của cây từ môi trường ngoài vào miền lông hút, vào rễ, lên thân cây và lá cây;", "Dựa vào sơ đồ, hình ảnh, phân biệt được sự vận chuyển các chất trong mạch gỗ từ rễ lên lá cây (dòng đi lên) và từ lá xuống các cơ quan trong mạch rây (dòng đi xuống).", "Trình bày được con đường trao đổi nước và nhu cầu sử dụng nước ở động vật (lấy ví dụ ở người);", "Dựa vào sơ đồ khái quát (hoặc mô hình, tranh ảnh, học liệu điện tử) mô tả được con đường thu nhận và tiêu hoá thức ăn trong ống tiêu hoá ở động vật (đại diện ở người);", "Mô tả được quá trình vận chuyển các chất ở động vật (thông qua quan sát tranh, ảnh, mô hình, học liệu điện tử), lấy ví dụ cụ thể ở hai vòng tuần hoàn ở người."], "Vận dụng": ["Tiến hành được thí nghiệm chứng minh thân vận chuyển nước và lá", "Vận dụng được những hiểu biết về trao đổi chất và chuyển hoá năng lượng ở thực vật vào thực tiễn (ví dụ giải thích việc tưới nước và bón phân hợp lí cho cây)."], "Vận dụng cao": ["Vận dụng được những hiểu biết về trao đổi chất và chuyển hoá năng lượng ở động vật vào thực tiễn (ví dụ về dinh dưỡng và vệ sinh ăn uống, ...)."] } }
+                    ]
+                },
+                {
+                    topic: "Cảm ứng ở sinh vật",
+                    units: [{ name: "Cảm ứng ở sinh vật", levels: { "Nhận biết": ["Phát biểu được khái niệm cảm ứng ở sinh vật.", "Nêu được vai trò cảm ứng đối với sinh vật.", "Phát biểu được khái niệm tập tính ở động vật;", "Nêu được vai trò của tập tính đối với động vật."], "Thông hiểu": ["Trình bày được cách làm thí nghiệm chứng minh tính cảm ứng ở thực vật (ví dụ hướng sáng, hướng nước, hướng tiếp xúc)."], "Vận dụng": ["Lấy được ví dụ về các hiện tượng cảm ứng ở sinh vật (ở thực vật và động vật).", "Lấy được ví dụ minh hoạ về tập tính ở động vật.", "Vận dụng được các kiến thức cảm ứng vào giải thích một số hiện tượng trong thực tiễn (ví dụ trong học tập, chăn nuôi, trồng trọt)."], "Vận dụng cao": ["Thực hành: quan sát, ghi chép và trình bày được kết quả quan sát một số tập tính của động vật."] } }]
+                },
+                {
+                    topic: "Sinh trưởng và phát triển ở sinh vật",
+                    units: [
+                        { name: "Khái niệm sinh trưởng và phát triển", levels: { "Nhận biết": ["Phát biểu được khái niệm sinh trưởng và phát triển ở sinh vật."], "Thông hiểu": ["Nêu được mối quan hệ giữa sinh trưởng và phát triển."] } },
+                        { name: "Cơ chế sinh trưởng ở thực vật và động vật", levels: { "Thông hiểu": ["Chỉ ra được mô phân sinh trên sơ đồ cắt ngang thân cây Hai lá mầm và trình bày được chức năng của mô phân sinh làm cây lớn lên"], "Vận dụng": ["Tiến hành được thí nghiệm chứng minh cây có sự sinh trưởng."] } },
+                        { name: "Các giai đoạn sinh trưởng và phát triển ở sinh vật", levels: { "Thông hiểu": ["Dựa vào hình vẽ vòng đời của một sinh vật (một ví dụ về thực vật và một ví dụ về động vật), trình bày được các giai đoạn sinh trưởng và phát triển của sinh vật đó."] } },
+                        { name: "Các nhân tố ảnh hưởng", levels: { "Thông hiểu": ["Nêu được các nhân tố chủ yếu ảnh hưởng đến sinh trưởng và phát triển của sinh vật (nhân tố nhiệt độ, ánh sáng, nước, dinh dưỡng)."] } },
+                        { name: "Điều hoà sinh trưởng và các phương pháp điều khiển", levels: { "Thông hiểu": ["Trình bày được một số ứng dụng sinh trưởng và phát triển trong thực tiễn (ví dụ điều hoà sinh trưởng và phát triển ở sinh vật bằng sử dụng chất kính thích hoặc điều khiển yếu tố môi trường)."], "Vận dụng": ["Thực hành quan sát và mô tả được sự sinh trưởng, phát triển ở một số thực vật, động vật.", "Vận dụng được những hiểu biết về sinh trưởng và phát triển sinh vật giải thích một số hiện tượng thực tiễn (tiêu diệt muỗi ở giai đoạn ấu trùng, phòng trừ sâu bệnh, chăn nuôi)."] } }
+                    ]
+                },
+                {
+                    topic: "Sinh sản ở sinh vật",
+                    units: [
+                        { name: "Khái niệm sinh sản ở sinh vật", levels: { "Nhận biết": ["Phát biểu được khái niệm sinh sản ở sinh vật."] } },
+                        { name: "Sinh sản vô tính", levels: { "Nhận biết": ["Nêu được khái niệm sinh sản vô tính ở sinh vật.", "Nêu được vai trò của sinh sản vô tính trong thực tiễn."], "Thông hiểu": ["Dựa vào hình ảnh hoặc mẫu vật, phân biệt được các hình thức sinh sản sinh dưỡng ở thực vật. Lấy được ví dụ minh hoạ.", "Dựa vào hình ảnh, phân biệt được các hình thức sinh sản vô tính ở động vật. Lấy được ví dụ minh hoạ."], "Vận dụng": ["Trình bày được các ứng dụng của sinh sản vô tính vào thực tiễn (nhân giống vô tính cây, nuôi cấy mô)."] } },
+                        { name: "Sinh sản hữu tính", levels: { "Nhận biết": ["Nêu được khái niệm sinh sản hữu tính ở sinh vật.", "Nêu được vai trò của sinh sản hữu tính."], "Thông hiểu": ["Phân biệt được sinh sản vô tính và sinh sản hữu tính.", "Dựa vào sơ đồ mô tả được quá trình sinh sản hữu tính ở thực vật: Mô tả được các bộ phận của hoa lưỡng tính, phân biệt với hoa đơn tính; Mô tả được thụ phấn; thụ tinh và lớn lên của quả.", "Dựa vào sơ đồ (hoặc hình ảnh) mô tả được khái quát quá trình sinh sản hữu tính ở động vật (lấy ví dụ ở động vật đẻ con và đẻ trứng)."], "Vận dụng": ["Nêu được một số ứng dụng của sinh sản hữu tính trong thực tiễn."] } },
+                        { name: "Các yếu tố ảnh hưởng đến sinh sản ở sinh vật", levels: { "Nhận biết": ["Nêu được một số yếu tố ảnh hưởng đến sinh sản ở sinh vật"] } },
+                        { name: "Điều hoà, điều khiển sinh sản ở sinh vật", levels: { "Nhận biết": ["Nêu được một số yếu tố ảnh hưởng đến điều hoà, điều khiển sinh sản ở sinh vật."], "Vận dụng": ["Giải thích được vì sao phải bảo vệ một số loài côn trùng thụ phấn cho cây."], "Vận dụng cao": ["Vận dụng được những hiểu biết về sinh sản hữu tính trong thực tiễn đời sống và chăn nuôi (thụ phấn nhân tạo, điều khiển số con, giới tính)."] } }
+                    ]
+                },
+                {
+                    topic: "Cơ thể sinh vật là một thể thống nhất",
+                    units: [{ name: "Cơ thể sinh vật là một thể thống nhất", levels: { "Vận dụng cao": ["Dựa vào sơ đồ mối quan hệ giữa tế bào với cơ thể và môi trường (tế bào – cơ thể – môi trường và sơ đồ quan hệ giữa các hoạt động sống: trao đổi chất và chuyển hoá năng lượng – sinh trưởng, phát triển – cảm ứng – sinh sản) chứng minh cơ thể sinh vật là một thể thống nhất."] } }]
+                },
+                {
+                    topic: "Tốc độ",
+                    units: [
+                        { name: "Tốc độ chuyển động", levels: { "Nhận biết": ["Nêu được ý nghĩa vật lí của tốc độ.", "Liệt kê được một số đơn vị đo tốc độ thường dùng."], "Thông hiểu": ["Tốc độ = quãng đường vật đi/thời gian đi quãng đường đó."], "Vận dụng": ["Xác định được tốc độ qua quãng đường vật đi được trong khoảng thời gian tương ứng."], "Vận dụng cao": ["Xác định được tốc độ trung bình qua quãng đường vật đi được trong khoảng thời gian tương ứng."] } },
+                        { name: "Đo tốc độ", levels: { "Thông hiểu": ["Mô tả được sơ lược cách đo tốc độ bằng đồng hồ bấm giây và cổng quang điện trong dụng cụ thực hành ở nhà trường; thiết bị “bắn tốc độ” trong kiểm tra tốc độ các phương tiện giao thông."], "Vận dụng": ["Dựa vào tranh ảnh (hoặc học liệu điện tử) thảo luận để nêu được ảnh hưởng của tốc độ trong an toàn giao thông."] } },
+                        { name: "Đồ thị quãng đường – thời gian", levels: { "Thông hiểu": ["Vẽ được đồ thị quãng đường – thời gian cho chuyển động thẳng."], "Vận dụng": ["Từ đồ thị quãng đường – thời gian cho trước, tìm được quãng đường vật đi (hoặc tốc độ, hay thời gian chuyển động của vật)."] } }
+                    ]
+                },
+                {
+                    topic: "Âm thanh",
+                    units: [
+                        { name: "Mô tả sóng âm", levels: { "Nhận biết": ["Nêu được đơn vị của tần số là hertz (kí hiệu là Hz)."], "Thông hiểu": ["Mô tả được các bước tiến hành thí nghiệm tạo sóng âm (như gảy đàn, gõ vào thanh kim loại,...).", "Giải thích được sự truyền sóng âm trong không khí."], "Vận dụng": ["Thực hiện thí nghiệm tạo sóng âm (như gảy đàn, gõ vào thanh kim loại,...) để chứng tỏ được sóng âm có thể truyền được trong chất rắn, lỏng, khí.", "Từ hình ảnh hoặc đồ thị xác định được biên độ và tần số sóng âm."] } },
+                        { name: "Độ to và độ cao của âm", levels: { "Nhận biết": ["Nêu được sự liên quan của độ to của âm với biên độ âm."], "Vận dụng": ["Sử dụng nhạc cụ (hoặc học liệu điện tử, dao động kí) chứng tỏ được độ cao của âm có liên hệ với tần số âm."], "Vận dụng cao": ["Thiết kế được một nhạc cụ bằng các vật liệu phù hợp sao cho có đầy đủ các nốt trong một quãng tám (ứng với các nốt: đồ, rê, mi, pha, son, la, si, đố) và sử dụng nhạc cụ này để biểu diễn một bài nhạc đơn giản."] } },
+                        { name: "Phản xạ âm", levels: { "Nhận biết": ["Lấy được ví dụ về vật phản xạ âm tốt, vật phản xạ âm kém."], "Thông hiểu": ["Giải thích được một số hiện tượng đơn giản thường gặp trong thực tế về sóng âm."], "Vận dụng": ["Đề xuất được phương án đơn giản để hạn chế tiếng ồn ảnh hưởng đến sức khoẻ."] } }
+                    ]
+                },
+                {
+                    topic: "Ánh sáng",
+                    units: [
+                        { name: "Sự truyền ánh sáng", levels: { "Nhận biết": ["Nêu được ánh sáng là một dạng của năng lượng."], "Thông hiểu": ["Mô tả được các bước tiến hành thí nghiệm thu được năng lượng ánh sáng.", "Mô tả được các bước tiến hành thí nghiệm tạo ra được mô hình tia sáng bằng một chùm sáng hẹp song song."], "Vận dụng": ["Thực hiện được thí nghiệm thu được năng lượng ánh sáng.", "Thực hiện được thí nghiệm tạo ra được mô hình tia sáng bằng một chùm sáng hẹp song song.", "Vẽ được hình biểu diễn vùng tối do nguồn sáng rộng và vùng tối do nguồn sáng hẹp."] } },
+                        { name: "Sự phản xạ ánh sáng", levels: { "Nhận biết": ["Nêu được các khái niệm: tia sáng tới, tia sáng phản xạ, pháp tuyến, góc tới, góc phản xạ, mặt phẳng tới, ảnh.", "Phát biểu được nội dung định luật phản xạ ánh sáng."], "Thông hiểu": ["Phân biệt được phản xạ và phản xạ khuếch tán."], "Vận dụng": ["Vẽ được hình biểu diễn định luật phản xạ ánh sáng.", "Thực hiện được thí nghiệm rút ra định luật phản xạ ánh sáng.", "Vận dụng được định luật phản xạ ánh sáng trong một số trường hợp đơn giản."] } },
+                        { name: "Ảnh của vật tạo bởi gương phẳng", levels: { "Nhận biết": ["Nêu được tính chất ảnh của vật qua gương phẳng."], "Vận dụng": ["Dựng được ảnh của một vật tạo bởi gương phẳng."], "Vận dụng cao": ["Dựng được ảnh của một hình bất kỳ tạo bởi gương phẳng.", "Thiết kế và chế tạo được sản phẩm đơn giản ứng dụng định luật phản xạ ánh sáng và tính chất ảnh của vật tạo bởi gương phẳng (như kính tiềm vọng, kính vạn hoa,…)"] } }
+                    ]
+                },
+                {
+                    topic: "Từ",
+                    units: [
+                        { name: "Nam châm", levels: { "Nhận biết": ["Xác định được cực Bắc và cực Nam của một thanh nam châm.", "Nêu được sự tương tác giữa các từ cực của hai nam châm."], "Thông hiểu": ["Mô tả được hiện tượng chứng tỏ nam châm vĩnh cửu có từ tính.", "Mô tả được cấu tạo và hoạt động của la bàn."], "Vận dụng": ["Tiến hành thí nghiệm để nêu được: Tác dụng của nam châm đến các vật liệu khác nhau; Sự định hướng của thanh nam châm (kim nam châm).", "Sử dụng la bàn để tìm được hướng địa lí."] } },
+                        { name: "Từ trường", levels: { "Nhận biết": ["Nêu được vùng không gian bao quanh một nam châm (hoặc dây dẫn mang dòng điện), mà vật liệu có tính chất từ đặt trong nó chịu tác dụng lực từ, được gọi là từ trường.", "Nêu được khái niệm từ phổ và tạo được từ phổ bằng mạt sắt và nam châm.", "Nêu được khái niệm đường sức từ."], "Vận dụng": ["Vẽ được đường sức từ quanh một thanh nam châm."] } },
+                        { name: "Từ trường Trái Đất", levels: { "Nhận biết": ["Dựa vào ảnh (hoặc hình vẽ, đoạn phim khoa học) khẳng định được Trái Đất có từ trường.", "Nêu được cực Bắc địa từ và cực Bắc địa lí không trùng nhau."] } },
+                        { name: "Nam châm điện", levels: { "Vận dụng": ["Chế tạo được nam châm điện đơn giản và làm thay đổi được từ trường của nó bằng thay đổi dòng điện."], "Vận dụng cao": ["Thiết kế và chế tạo được sản phẩm đơn giản ứng dụng nam châm điện (như xe thu gom đinh sắt, xe cần cẩu dùng nam châm điện, máy sưởi mini, …)"] } }
+                    ]
+                }
+            ]
+        },
+        {
+            grade: "LỚP 8",
+            content: [
+                {
+                    topic: "Mở đầu",
+                    units: [{ name: "Mở đầu", levels: { "Nhận biết": ["Nhận biết được một số dụng cụ và hoá chất sử dụng trong môn Khoa học tự nhiên 8.", "Nêu được quy tắc sử dụng hoá chất an toàn (chủ yếu những hoá chất trong môn Khoa học tự nhiên 8).", "Nhận biết được các thiết bị điện trong môn Khoa học tự nhiên 8."], "Thông hiểu": ["*Trình bày được cách sử dụng điện an toàn."] } }]
+                },
+                {
+                    topic: "Phản ứng hoá học",
+                    units: [
+                        { name: "Biến đổi vật lí và biến đổi hoá học", levels: { "Nhận biết": ["Nêu được khái niệm sự biến đổi vật lí, biến đổi hoá học."], "Thông hiểu": ["Phân biệt được sự biến đổi vật lí, biến đổi hoá học. Đưa ra được ví dụ về sự biến đổi vật lí và sự biến đổi hoá học."] } },
+                        { name: "Phản ứng hoá học", levels: { "Nhận biết": ["Nêu được khái niệm phản ứng hoá học, chất đầu và sản phẩm.", "Nêu được sự sắp xếp khác nhau của các nguyên tử trong phân tử chất đầu và sản phẩm"], "Thông hiểu": ["Tiến hành được một số thí nghiệm về sự biến đổi vật lí và biến đổi hoá học.", "Chỉ ra được một số dấu hiệu chứng tỏ có phản ứng hoá học xảy ra."] } },
+                        { name: "Năng lượng trong các phản ứng hoá học", levels: { "Nhận biết": ["Nêu được khái niệm về phản ứng toả nhiệt, thu nhiệt.", "Trình bày được các ứng dụng phổ biến của phản ứng toả nhiệt (đốt cháy than, xăng, dầu)."], "Thông hiểu": ["Đưa ra được ví dụ minh hoạ về phản ứng toả nhiệt, thu nhiệt."] } },
+                        { name: "Định luật bảo toàn khối lượng", levels: { "Nhận biết": ["Phát biểu được định luật bảo toàn khối lượng."], "Thông hiểu": ["Tiến hành được thí nghiệm để chứng minh: Trong phản ứng hoá học, khối lượng được bảo toàn."] } },
+                        { name: "Phương trình hoá học", levels: { "Nhận biết": ["Nêu được khái niệm phương trình hoá học và các bước lập phương trình hoá học.", "Trình bày được ý nghĩa của phương trình hoá học."], "Thông hiểu": ["Lập được sơ đồ phản ứng hoá học dạng chữ và phương trình hoá học (dùng công thức hoá học) của một số phản ứng hoá học cụ thể."] } },
+                        { name: "Mol và tỉ khối của chất khí", levels: { "Nhận biết": ["Nêu được khái niệm về mol (nguyên tử, phân tử).", "Nêu được khái niệm tỉ khối, viết được công thức tính tỉ khối của chất khí.", "Nêu được khái niệm thể tích mol của chất khí ở áp suất 1 bar và 250C"], "Thông hiểu": ["Tính được khối lượng mol (M); Chuyển đổi được giữa số mol (n) và khối lượng (m)", "So sánh được chất khí này nặng hay nhẹ hơn chất khí khác dựa vào công thức tính tỉ khối.", "Sử dụng được công thức V(L) = n(mol) x 24,79 (L/mol) để chuyển đổi giữa số mol và thể tích chất khí ở điều kiện chuẩn: áp suất 1 bar ở 250C."] } },
+                        { name: "Tính theo phương trình hoá học", levels: { "Nhận biết": ["Nêu được khái niệm hiệu suất của phản ứng"], "Vận dụng": ["Tính được lượng chất trong phương trình hóa học theo số mol, khối lượng hoặc thể tích ở điều kiện 1 bar và 250C.", "Tính được hiệu suất của một phản ứng dựa vào lượng sản phẩm thu được theo lí thuyết và lượng sản phẩm thu được theo thực tế."] } },
+                        { name: "Nồng độ dung dịch", levels: { "Nhận biết": ["Nêu được dung dịch là hỗn hợp lỏng đồng nhất của các chất đã tan trong nhau.", "Nêu được định nghĩa độ tan của một chất trong nước, nồng độ phần trăm, nồng độ mol."], "Thông hiểu": ["Tính được độ tan, nồng độ phần trăm; nồng độ mol theo công thức."], "Vận dụng": ["Tiến hành được thí nghiệm pha một dung dịch theo một nồng độ cho trước."] } }
+                    ]
+                },
+                {
+                    topic: "Tốc độ phản ứng và chất xúc tác",
+                    units: [{ name: "Tốc độ phản ứng và chất xúc tác", levels: { "Vận dụng": ["Tiến hành được thí nghiệm và quan sát thực tiễn: So sánh được tốc độ một số phản ứng hoá học; Nêu được các yếu tố làm thay đổi tốc độ phản ứng."] } }]
+                },
+                {
+                    topic: "Acid – base – pH – oxide – muối",
+                    units: [
+                        { name: "Acid (axit)", levels: { "Nhận biết": ["Nêu được khái niệm acid (tạo ra ion H+).", "Trình bày được một số ứng dụng của một số acid thông dụng (HCl, H2SO4, CH3COOH)."], "Thông hiểu": ["Tiến hành được thí nghiệm của hydrochloric acid (làm đổi màu chất chỉ thị; phản ứng với kim loại), nêu và giải thích được hiện tượng xảy ra trong thí nghiệm (viết phương trình hoá học) và rút ra nhận xét về tính chất của acid."] } },
+                        { name: "Base (bazơ)", levels: { "Nhận biết": ["Nêu được khái niệm base (tạo ra ion OH–).", "Nêu được kiềm là các hydroxide tan tốt trong nước."], "Thông hiểu": ["Tra được bảng tính tan để biết một hydroxide cụ thể thuộc loại kiềm hoặc base không tan.", "Tiến hành được thí nghiệm base là làm đổi màu chất chỉ thị, phản ứng với acid tạo muối, nêu và giải thích được hiện tượng xảy ra trong thí nghiệm (viết phương trình hoá học) và rút ra nhận xét về tính chất của base."] } },
+                        { name: "Thang đo pH", levels: { "Nhận biết": ["Nêu được thang pH, sử dụng pH để đánh giá độ acid - base của dung dịch."], "Thông hiểu": ["Tiến hành được một số thí nghiệm đo pH (bằng giấy chỉ thị) một số loại thực phẩm (đồ uống, hoa quả,...)."], "Vận dụng": ["Liên hệ được pH trong dạ dày, trong máu, trong nước mưa, đất."] } },
+                        { name: "Oxide (oxit)", levels: { "Nhận biết": ["Nêu được khái niệm oxide là hợp chất của oxygen với một nguyên tố khác."], "Thông hiểu": ["Viết được phương trình hoá học tạo oxide từ kim loại/phi kim với oxygen.", "Phân loại được các oxide theo khả năng phản ứng với acid/base (oxide acid, oxide base, oxide lưỡng tính, oxide trung tính).", "Tiến hành được thí nghiệm oxide kim loại phản ứng với acid; oxide phi kim phản ứng với base; nêu và giải thích được hiện tượng xảy ra trong thí nghiệm (viết phương trình hoá học) và rút ra nhận xét về tính chất hoá học của oxide."] } },
+                        { name: "Muối", levels: { "Nhận biết": ["Nêu được khái niệm về muối (các muối thông thường là hợp chất được hình thành từ sự thay thế ion H+ của acid bởi ion kim loại hoặc ion NH4+).", "Chỉ ra được một số muối tan và muối không tan từ bảng tính tan."], "Thông hiểu": ["Đọc được tên một số loại muối thông dụng.", "*Trình bày được một số phương pháp điều chế muối.", "*Trình bày được mối quan hệ giữa acid, base, oxide và muối; rút ra được kết luận về tính chất hoá học của acid, base, oxide.", "Tiến hành được thí nghiệm muối phản ứng với kim loại, với acid, với base, với muối; nêu và giải thích được hiện tượng xảy ra trong thí nghiệm (viết phương trình hoá học) và rút ra kết luận về tính chất hoá học của muối."] } }
+                    ]
+                },
+                {
+                    topic: "Phân bón hoá học",
+                    units: [{ name: "Phân bón hoá học", levels: { "Nhận biết": ["Trình bày được vai trò của phân bón (một trong những nguồn bổ sung một số nguyên tố: đa lượng, trung lượng, vi lượng dưới dạng vô cơ)."], "Thông hiểu": ["*Trình bày được ảnh hưởng của việc sử dụng phân bón hoá học (không đúng cách, không đúng liều lượng) đến môi trường của đất, nước và sức khoẻ của con người."], "Vận dụng cao": ["Đề xuất được biện pháp giảm thiểu ô nhiễm của phân bón."] } }]
+                },
+                {
+                    topic: "Khái quát về cơ thể người",
+                    units: [{ name: "Các cơ quan và hệ cơ quan trong cơ thể người", levels: { "Nhận biết": ["Nêu được tên và vai trò chính của các cơ quan và hệ cơ quan trong cơ thể người."] } }]
+                },
+                {
+                    topic: "Hệ vận động ở người",
+                    units: [
+                        { name: "Chức năng, sự phù hợp giữa cấu tạo với chức năng của hệ vận động", levels: { "Nhận biết": ["Nêu được chức năng của hệ vận động ở người."], "Thông hiểu": ["Dựa vào sơ đồ (hoặc hình vẽ): Mô tả được cấu tạo sơ lược các cơ quan của hệ vận động; Phân tích được sự phù hợp giữa cấu tạo với chức năng của hệ vận động."], "Vận dụng": ["Vận dụng được hiểu biết về lực và thành phần hoá học của xương để giải thích sự co cơ, khả năng chịu tải của xương.", "Liên hệ được kiến thức đòn bẩy vào hệ vận động."] } },
+                        { name: "Bảo vệ hệ vận động", levels: { "Nhận biết": ["Nêu được tác hại của bệnh loãng xương.", "Nêu được một số biện pháp bảo vệ các cơ quan của hệ vận động và cách phòng chống các bệnh, tật."], "Thông hiểu": ["Trình bày được một số bệnh, tật liên quan đến hệ vận động và một số bệnh về sức khoẻ học đường liên quan hệ vận động (ví dụ: cong vẹo cột sống)."], "Vận dụng cao": ["Thực hành: Thực hiện được sơ cứu và băng bó khi người khác bị gãy xương;", "Tìm hiểu được tình hình mắc các bệnh về hệ vận động trong trường học và khu dân cư."] } },
+                        { name: "Vai trò của tập thể dục, thể thao", levels: { "Nhận biết": ["Nêu được ý nghĩa của tập thể dục, thể thao."], "Vận dụng": ["Thực hiện được phương pháp luyện tập thể thao phù hợp (Tự đề xuất được một chế độ luyện tập cho bản thân và luyện tập theo chế độ đã đề xuất nhằm nâng cao thể lực và thể hình)."] } },
+                        { name: "Sức khoẻ học đường", levels: { "Vận dụng": ["Vận dụng được hiểu biết về hệ vận động và các bệnh học đường để bảo vệ bản thân và tuyên truyền, giúp đỡ cho người khác."] } }
+                    ]
+                },
+                {
+                    topic: "Dinh dưỡng và tiêu hoá ở người",
+                    units: [
+                        { name: "Chức năng, sự phù hợp giữa cấu tạo với chức năng của hệ tiêu hoá", levels: { "Thông hiểu": ["Trình bày được chức năng của hệ tiêu hoá.", "Quan sát hình vẽ (hoặc mô hình, sơ đồ khái quát) hệ tiêu hóa ở người, kể tên được các cơ quan của hệ tiêu hóa. Nêu được chức năng của mỗi cơ quan và sự phối hợp các cơ quan thể hiện chức năng của cả hệ tiêu hoá."] } },
+                        { name: "Chế độ dinh dưỡng của con người", levels: { "Nhận biết": ["Nêu được khái niệm dinh dưỡng, chất dinh dưỡng.", "Nêu được mối quan hệ giữa tiêu hoá và dinh dưỡng.", "Nêu được nguyên tắc lập khẩu phần thức ăn cho con người."], "Thông hiểu": ["Trình bày được chế độ dinh dưỡng của con người ở các độ tuổi."], "Vận dụng cao": ["Thực hành xây dựng được chế độ dinh dưỡng cho bản thân và những người trong gia đình."] } },
+                        { name: "Bảo vệ hệ tiêu hoá", levels: { "Thông hiểu": ["Nêu được một số bệnh về đường tiêu hoá và cách phòng và chống (bệnh răng, miệng; bệnh dạ dày; bệnh đường ruột, ...)."], "Vận dụng": ["Vận dụng được hiểu biết về dinh dưỡng và tiêu hoá để phòng và chống các bệnh về tiêu hoá cho bản thân và gia đình."] } },
+                        { name: "An toàn vệ sinh thực phẩm", levels: { "Nhận biết": ["Nêu được khái niệm an toàn thực phẩm", "Kể được tên một số loại thực phẩm dễ bị mất an toàn vệ sinh thực phẩm do sinh vật, hoá chất, bảo quản, chế biến;", "Kể được tên một số hoá chất (độc tố), cách chế biến, cách bảo quản gây mất an toàn vệ sinh thực phẩm;"], "Thông hiểu": ["Nêu được một số nguyên nhân chủ yếu gây ngộ độc thực phẩm. Lấy được ví dụ minh hoạ.", "Trình bày được một số điều cần biết về vệ sinh thực phẩm.", "Trình bày được cách bảo quản, chế biến thực phẩm an toàn.", "Trình bày được một số bệnh do mất vệ sinh an toàn thực phẩm và cách phòng và chống các bệnh này."], "Vận dụng cao": ["Vận dụng được hiểu biết về an toàn vệ sinh thực phẩm để đề xuất các biện pháp lựa chọn, bảo quản, chế biến, chế độ ăn uống an toàn cho bản thân và gia đình.", "Đọc và hiểu được ý nghĩa của các thông tin ghi trên nhãn hiệu bao bì thực phẩm và biết cách sử dụng thực phẩm đó một cách phù hợp.", "Thực hiện được dự án điều tra về vệ sinh an toàn thực phẩm tại địa phương; dự án điều tra một số bệnh đường tiêu hoá trong trường học hoặc tại địa phương (bệnh sâu răng, bệnh dạ dày,...)."] } }
+                    ]
+                },
+                {
+                    topic: "Máu và hệ tuần hoàn của cơ thể người",
+                    units: [
+                        { name: "Chức năng, sự phù hợp giữa cấu tạo với chức năng của máu và hệ tuần hoàn", levels: { "Nhận biết": ["Nêu được chức năng của máu và hệ tuần hoàn.", "Nêu được khái niệm nhóm máu.", "Nêu được các thành phần của máu và chức năng của mỗi thành phần (hồng cầu, bạch cầu, tiểu cầu, huyết tương)."], "Thông hiểu": ["Quan sát mô hình (hoặc hình vẽ, sơ đồ khái quát) hệ tuần hoàn ở người, kể tên được các cơ quan của hệ tuần hoàn.", "Nêu được chức năng của mỗi cơ quan và sự phối hợp các cơ quan thể hiện chức năng của cả hệ tuần hoàn.", "Phân tích được vai trò của việc hiểu biết về nhóm máu trong thực tiễn (ví dụ trong cấp cứu phải truyền máu). Nêu được ý nghĩa của truyền máu, cho máu và tuyên truyền cho người khác cùng tham gia phong trào hiến máu nhân đạo."] } },
+                        { name: "Bảo vệ hệ tuần hoàn và một số bệnh phổ biến", levels: { "Nhận biết": ["Nêu được một số bệnh về máu, tim mạch và cách phòng chống các bệnh đó."], "Vận dụng": ["Vận dụng được hiểu biết về máu và tuần hoàn để bảo vệ bản thân và gia đình.", "Thực hiện được các bước đo huyết áp."], "Vận dụng cao": ["Thực hiện được tình huống giả định cấp cứu người bị chảy máu, tai biến, đột quỵ; băng bó vết thương khi bị chảy nhiều máu.", "Thực hiện được dự án, bài tập: Điều tra bệnh cao huyết áp, tiểu đường tại địa phương.", "Tìm hiểu được phong trào hiến máu nhân đạo ở địa phương."] } },
+                        { name: "Miễn dịch: kháng nguyên, kháng thể; vaccine", levels: { "Nhận biết": ["Nêu được khái niệm miễn dịch, kháng nguyên, kháng thể.", "Nêu được vai trò vaccine (vacxin) và vai trò của tiêm vaccine trong việc phòng bệnh."], "Thông hiểu": ["Dựa vào sơ đồ, trình bày được cơ chế miễn dịch trong cơ thể người.", "Giải thích được vì sao con người sống trong môi trường có nhiều vi khuẩn có hại nhưng vẫn có thể sống khoẻ mạnh."] } }
+                    ]
+                },
+                {
+                    topic: "Hệ hô hấp ở người",
+                    units: [
+                        { name: "Chức năng, sự phù hợp giữa cấu tạo với chức năng của hệ hô hấp", levels: { "Nhận biết": ["Nêu được chức năng của hệ hô hấp."], "Thông hiểu": ["Quan sát mô hình (hoặc hình vẽ, sơ đồ khái quát) hệ hô hấp ở người, kể tên được các cơ quan của hệ hô hấp.", "Nêu được chức năng của mỗi cơ quan và sự phối hợp các cơ quan thể hiện chức năng của cả hệ hô hấp."] } },
+                        { name: "Bảo vệ hệ hô hấp", levels: { "Nhận biết": ["Nêu được một số bệnh về phổi, đường hô hấp và cách phòng tránh."], "Thông hiểu": ["Trình bày được vai trò của việc chống ô nhiễm không khí liên quan đến các bệnh về hô hấp."], "Vận dụng": ["Vận dụng được hiểu biết về hô hấp để bảo vệ bản thân và gia đình."], "Vận dụng cao": ["Thực hiện được tình huống giả định hô hấp nhân tạo, cấp cứu người đuối nước.", "Tranh luận trong nhóm và đưa ra được quan điểm nên hay không nên hút thuốc lá và kinh doanh thuốc lá.", "Thiết kế được áp phích tuyên truyền không hút thuốc lá.", "Điều tra được một số bệnh về đường hô hấp trong trường học hoặc tại địa phương, nêu được nguyên nhân và cách phòng tránh."] } }
+                    ]
+                },
+                {
+                    topic: "Hệ bài tiết ở người",
+                    units: [
+                        { name: "Các cơ quan và chức năng của hệ bài tiết", levels: { "Nhận biết": ["Nêu được chức năng của hệ bài tiết.", "Dựa vào hình ảnh sơ lược, kể tên được các bộ phận chủ yếu của thận."], "Thông hiểu": ["Dựa vào hình ảnh hay mô hình, kể tên được các cơ quan của hệ bài tiết nước tiểu.", "Trình bày được một số bệnh về hệ bài tiết. Trình bày cách phòng chống các bệnh về hệ bài tiết."] } },
+                        { name: "Bảo vệ hệ bài tiết", levels: { "Vận dụng": ["Vận dụng được hiểu biết về hệ bài tiết để bảo vệ sức khoẻ."], "Vận dụng cao": ["Tìm hiểu được một số thành tựu ghép thận, chạy thận nhân tạo.", "Thực hiện được dự án, bài tập: Điều tra bệnh về thận như sỏi thận, viêm thận,... trong trường học hoặc tại địa phương."] } }
+                    ]
+                },
+                {
+                    topic: "Điều hoà môi trường trong của cơ thể",
+                    units: [
+                        { name: "Khái niệm môi trường trong của cơ thể", levels: { "Nhận biết": ["Nêu được khái niệm môi trường trong của cơ thể."] } },
+                        { name: "Duy trì sự ổn định môi trường trong của cơ thể", levels: { "Nhận biết": ["Nêu được khái niệm cân bằng môi trường trong.", "Nêu được vai trò của sự duy trì ổn định môi trường trong của cơ thể (ví dụ nồng độ glucose, nồng độ muối trong máu, urea, uric acid, pH)."], "Thông hiểu": ["Đọc và hiểu được thông tin một ví dụ cụ thể về kết quả xét nghiệm nồng độ đường và uric acid trong máu."] } }
+                    ]
+                },
+                {
+                    topic: "Hệ thần kinh và các giác quan ở người",
+                    units: [
+                        { name: "Chức năng, sự phù hợp giữa cấu tạo với chức năng", levels: { "Nhận biết": ["Nêu được chức năng của hệ thần kinh và các giác quan.", "Nêu được chức năng của các giác quan thị giác và thính giác.", "Dựa vào hình ảnh kể tên được hai bộ phận của hệ thần kinh là bộ phận trung ương (não, tuỷ sống) và bộ phận ngoại biên (các dây thần kinh, hạch thần kinh)."], "Thông hiểu": ["Dựa vào hình ảnh hay sơ đồ, kể tên được các bộ phận của mắt và sơ đồ đơn giản quá trình thu nhận ánh sáng.", "Dựa vào hình ảnh hay sơ đồ, kể tên được các bộ phận của tai ngoài, tai giữa, tai trong và sơ đồ đơn giản quá trình thu nhận âm thanh."] } },
+                        { name: "Bảo vệ hệ thần kinh và các giác quan", levels: { "Nhận biết": ["Nêu được tác hại của các chất gây nghiện đối với hệ thần kinh."], "Thông hiểu": ["Trình bày được một số bệnh về hệ thần kinh và cách phòng các bệnh đó.", "Trình bày được một số bệnh về thị giác và thính giác và cách phòng, chống các bệnh đó (ví dụ: bệnh về mắt: bệnh đau mắt đỏ, ...; tật về mắt: cận thị, viễn thị, ...)."], "Vận dụng": ["Liên hệ được kiến thức truyền ánh sáng trong thu nhận ánh sáng ở mắt.", "Liên hệ được cơ chế truyền âm thanh trong thu nhận âm thanh ở tai."] } },
+                        { name: "Sức khoẻ học đường liên quan", levels: { "Vận dụng": ["Không sử dụng các chất gây nghiện và tuyên truyền hiểu biết cho người khác.", "Vận dụng được hiểu biết về các giác quan để bảo vệ bản thân và người thân trong gia đình."], "Vận dụng cao": ["Tìm hiểu được các bệnh và tật về mắt trong trường học (cận thị, viễn thị,...), tuyên truyền chăm sóc và bảo vệ đôi mắt."] } }
+                    ]
+                },
+                {
+                    topic: "Hệ nội tiết ở người",
+                    units: [
+                        { name: "Chức năng của các tuyến nội tiết", levels: { "Nhận biết": ["Kể được tên các tuyến nội tiết.", "Nêu được chức năng của các tuyến nội tiết."] } },
+                        { name: "Bảo vệ hệ nội tiết", levels: { "Nhận biết": ["Nêu được một số bệnh liên quan đến hệ nội tiết (tiểu đường, bướu cổ do thiếu iodine,...)."], "Thông hiểu": ["Nêu được cách phòng chống các bệnh liên quan đến hệ nội tiết."], "Vận dụng": ["Vận dụng được hiểu biết về các tuyến nội tiết để bảo vệ sức khoẻ bản thân và người thân trong gia đình."], "Vận dụng cao": ["Tìm hiểu được các bệnh nội tiết ở địa phương (ví dụ bệnh tiểu đường, bướu cổ)."] } }
+                    ]
+                },
+                {
+                    topic: "Da và điều hoà thân nhiệt ở người",
+                    units: [
+                        { name: "Chức năng và cấu tạo da người", levels: { "Nhận biết": ["Nêu được cấu tạo sơ lược của da.", "Nêu được chức năng của da."] } },
+                        { name: "Chăm sóc và bảo vệ da", levels: { "Thông hiểu": ["Trình bày được một số bệnh về da và các biện pháp chăm sóc, bảo vệ và làm đẹp da an toàn."], "Vận dụng": ["Vận dụng được hiểu biết về da để chăm sóc da, trang điểm an toàn cho da."], "Vận dụng cao": ["Tìm hiểu được các bệnh về da trong trường học hoặc trong khu dân cư.", "Tìm hiểu được một số thành tựu ghép da trong y học."] } },
+                        { name: "Thân nhiệt", levels: { "Nhận biết": ["Nêu được khái niệm thân nhiệt.", "Nêu được vai trò và cơ chế duy trì thân nhiệt ổn định ở người.", "Nêu được vai trò của da và hệ thần kinh trong điều hoà thân nhiệt.", "Nêu được một số biện pháp chống cảm lạnh, cảm nóng.", "Nêu được ý nghĩa của việc đo thân nhiệt."], "Thông hiểu": ["Trình bày được một số phương pháp chống nóng, lạnh cho cơ thể."], "Vận dụng": ["Thực hành được cách đo thân nhiệt."], "Vận dụng cao": ["Thực hiện được tình huống giả định cấp cứu khi cảm nóng hoặc lạnh."] } }
+                    ]
+                },
+                {
+                    topic: "Sinh sản",
+                    units: [
+                        { name: "Chức năng, cấu tạo của hệ sinh dục", levels: { "Nhận biết": ["Nêu được chức năng của hệ sinh dục.", "Kể tên được các cơ quan sinh dục nam và nữ."], "Thông hiểu": ["Trình bày được chức năng của các cơ quan sinh dục nam và nữ.", "Nêu được hiện tượng kinh nguyệt.", "Nêu được khái niệm thụ tinh và thụ thai."] } },
+                        { name: "Bảo vệ hệ sinh dục và sức khoẻ sinh sản", levels: { "Nhận biết": ["Kể tên được một số bệnh lây truyền qua đường sinh dục (bệnh HIV/AIDS, giang mai, lậu,...).", "Nêu được ý nghĩa và các biện pháp bảo vệ sức khoẻ sinh sản vị thành niên."], "Thông hiểu": ["Nêu được cách phòng tránh thai.", "Trình bày được cách phòng chống các bệnh lây truyền qua đường sinh dục (bệnh HIV/AIDS, giang mai, lậu,...)."], "Vận dụng": ["Vận dụng được hiểu biết về sinh sản để bảo vệ sức khoẻ bản thân."], "Vận dụng cao": ["Điều tra được sự hiểu biết của học sinh trong trường về sức khoẻ sinh sản vị thành niên (an toàn tình dục)."] } }
+                    ]
+                },
+                {
+                    topic: "Môi trường và các nhân tố sinh thái",
+                    units: [
+                        { name: "Khái niệm môi trường", levels: { "Nhận biết": ["Nêu được khái niệm môi trường sống của sinh vật"], "Thông hiểu": ["Phân biệt được 4 môi trường sống chủ yếu: môi trường trên cạn, môi trường dưới nước, môi trường trong đất và môi trường sinh vật. Lấy được ví dụ minh hoạ các môi trường sống của sinh vật."] } },
+                        { name: "Nhân tố sinh thái vô sinh, hữu sinh", levels: { "Nhận biết": ["Nêu được khái niệm nhân tố sinh thái."], "Thông hiểu": ["Trình bày được sơ lược khái niệm về giới hạn sinh thái, lấy được ví dụ minh hoạ.", "Phân biệt được nhân tố sinh thái vô sinh và nhân tố hữu sinh (bao gồm cả nhân tố con người). Lấy được ví dụ minh hoạ các nhân tố sinh thái và ảnh hưởng của nhân tố sinh thái lên đời sống sinh vật."] } }
+                    ]
+                },
+                {
+                    topic: "Hệ sinh thái",
+                    units: [
+                        { name: "Quần thể", levels: { "Nhận biết": ["Phát biểu được khái niệm quần thể sinh vật.", "Nêu được các đặc trưng cơ bản của quần thể (đặc trưng về số lượng, giới tính, lứa tuổi, phân bố)."], "Thông hiểu": ["Lấy được ví dụ minh hoạ cho các đặc trưng cơ bản của quần thể (đặc trưng về số lượng, giới tính, lứa tuổi, phân bố)."], "Vận dụng": ["Đề xuất được một số biện pháp bảo vệ quần thể."] } },
+                        { name: "Quần xã", levels: { "Nhận biết": ["Phát biểu được khái niệm quần xã sinh vật.", "Nêu được một số đặc điểm cơ bản của quần xã (Đặc điểm về độ đa dạng: số lượng loài và số cá thể của mỗi loài; đặc điểm về thành phần loài: loài ưu thế, loài đặc trưng)."], "Thông hiểu": ["Lấy được ví dụ minh hoạ các đặc trưng của quần xã."], "Vận dụng": ["Đề xuất được một số biện pháp bảo vệ đa dạng sinh học trong quần xã."] } },
+                        { name: "Hệ sinh thái", levels: { "Nhận biết": ["Phát biểu được khái niệm hệ sinh thái."], "Thông hiểu": ["Nêu được khái niệm chuỗi, lưới thức ăn; sinh vật sản xuất, sinh vật tiêu thụ, sinh vật phân giải, tháp sinh thái.", "Nêu được tầm quan trọng của bảo vệ một số hệ sinh thái điển hình của Việt Nam: các hệ sinh thái rừng, hệ sinh thái biển và ven biển, các hệ sinh thái nông nghiệp.", "Lấy được ví dụ về các kiểu hệ sinh thái (hệ sinh thái trên cạn, hệ sinh thái nước mặn, hệ sinh thái nước ngọt).", "Lấy được ví dụ chuỗi thức ăn, lưới thức ăn trong quần xã.", "Quan sát sơ đồ vòng tuần hoàn của các chất trong hệ sinh thái, trình bày được khái quát quá trình trao đổi chất và chuyển hoá năng lượng trong hệ sinh thái."], "Vận dụng cao": ["Thực hành: điều tra được thành phần quần xã sinh vật trong một hệ sinh thái."] } },
+                        { name: "Sinh quyển", levels: { "Nhận biết": ["Nêu được khái niệm sinh quyển."] } }
+                    ]
+                },
+                {
+                    topic: "Cân bằng tự nhiên",
+                    units: [
+                        { name: "Khái niệm, nguyên nhân gây mất cân bằng tự nhiên", levels: { "Nhận biết": ["Nêu được khái niệm cân bằng tự nhiên."], "Thông hiểu": ["Trình bày được các nguyên nhân gây mất cân bằng tự nhiên."] } },
+                        { name: "Biện pháp duy trì cân bằng tự nhiên", levels: { "Thông hiểu": ["Phân tích được một số biện pháp bảo vệ, duy trì cân bằng tự nhiên."] } }
+                    ]
+                },
+                {
+                    topic: "Bảo vệ môi trường",
+                    units: [
+                        { name: "Tác động của con người đối với môi trường", levels: { "Thông hiểu": ["Trình bày được tác động của con người đối với môi trường qua các thời kì phát triển xã hội; vai trò của con người trong bảo vệ và cải tạo môi trường tự nhiên.", "Trình bày được tác động của con người làm suy thoái môi trường tự nhiên;"] } },
+                        { name: "Ô nhiễm môi trường", levels: { "Nhận biết": ["Nêu được khái niệm ô nhiễm môi trường"], "Thông hiểu": ["Trình bày được sơ lược về một số nguyên nhân gây ô nhiễm môi trường (ô nhiễm do chất thải sinh hoạt và công nghiệp, ô nhiễm hoá chất bảo vệ thực vật, ô nhiễm phóng xạ, ô nhiễm do sinh vật gây bệnh)."] } },
+                        { name: "Biến đổi khí hậu", levels: { "Nhận biết": ["Nêu được khái niệm khái quát về biến đổi khí hậu.", "Nêu được một số biện pháp chủ yếu nhằm thích ứng với biến đổi khí hậu."] } },
+                        { name: "Gìn giữ thiên nhiên", levels: { "Thông hiểu": ["Trình bày được sự cần thiết phải bảo vệ động vật hoang dã, nhất là những loài có nguy cơ bị tuyệt chủng cần được bảo vệ theo Công ước quốc tế về buôn bán các loài động, thực vật hoang dã (CITES) (ví dụ như các loài voi, tê giác, hổ, sếu đầu đỏ và các loài linh trưởng,…)."] } },
+                        { name: "Hạn chế ô nhiễm môi trường", levels: { "Thông hiểu": ["Trình bày được biện pháp hạn chế ô nhiễm môi trường."], "Vận dụng cao": ["Điều tra được hiện trạng ô nhiễm môi trường ở địa phương."] } }
+                    ]
+                },
+                {
+                    topic: "Khối lượng riêng và áp suất",
+                    units: [
+                        { name: "Khối lượng riêng", levels: { "Nhận biết": ["Nêu được định nghĩa khối lượng riêng.", "Kể tên được một số đơn vị khối lượng riêng của một chất: kg/m3; g/m3; g/cm3; …"], "Thông hiểu": ["Viết được công thức: D = m/V; trong đó d là khối lượng riêng của một chất, đơn vị là kg/m3; m là khối lượng của vật [kg]; V là thể tích của vật [m3]", "Mô tả được các bước tiến hành thí nghiệm để xác định được khối lượng riêng của một vật hình hộp chữ nhật (hoặc của một lượng chất lỏng hoặc là một vật hình dạng bất kì nhưng có kích thước không lớn)."], "Vận dụng": ["Vận dụng được công thức tính khối lượng riêng của một chất khi biết khối lượng và thể tích của vật. Hoặc bài toán cho biết hai đại lượng trong công thức và tính đại lượng còn lại.", "Tiến hành được thí nghiệm để xác định được khối lượng riêng của một khối hộp chữ nhật hay của một vật có hình dạng bất kì hoặc là của một lượng chất lỏng nào đó."] } },
+                        { name: "Áp suất trên một bề mặt", levels: { "Nhận biết": ["Phát biểu được khái niệm về áp suất.", "Kể tên được một số đơn vị đo áp suất: N/m2; Pascan (Pa)"], "Thông hiểu": ["Nêu được điều kiện vật nổi (hoặc vật chìm) là do khối lượng riêng của chúng nhỏ hơn hoặc lớn hơn lực đẩy Archimedes.", "Lấy được ví dụ thực tế về vật có áp suất lớn và vật áp suất nhỏ."], "Vận dụng": ["Giải thích được một số ứng dụng của việc tăng áp suất hay giảm áp suất để tạo ra các thiết bị kĩ thuật, vật dụng sinh hoạt nhằm phục vụ lao động sản xuất và sinh hoạt của con người."], "Vận dụng cao": ["Thiết kế mô hình phao bơi từ những dụng cụ thông dụng bỏ đi"] } },
+                        { name: "Áp suất trong chất lỏng và chất khí", levels: { "Nhận biết": ["Lấy được ví dụ về sự tồn tại của áp suất chất lỏng.", "Lấy được ví dụ về sự tồn tại lực đẩy Archimedes.", "Lấy được ví dụ chứng tỏ không khí (khí quyển) có áp suất.", "Mô tả được hiện tượng bất thường trong tai khi con người thay đổi độ cao so với mặt đất."], "Thông hiểu": ["Lấy được ví dụ để chỉ ra được áp suất chất lỏng tác dụng lên mọi phương của vật chứa nó.", "Nêu được điều kiện vật nổi (hoặc vật chìm) là do khối lượng riêng của chúng nhỏ hơn hoặc lớn hơn lực đẩy Archimedes."], "Vận dụng": ["Giải thích được áp suất chất lỏng phụ thuộc vào độ cao của cột chất lỏng.", "Giải thích được tại sao con người chỉ lặn xuống nước ở một độ sâu nhất định."], "Vận dụng cao": ["Thiết kế được phương án chứng minh được áp suất chất lỏng phụ thuộc vào độ cao của cột chất lỏng."] } },
+                        { name: "Áp suất khí quyển", levels: { "Thông hiểu": ["Lấy được ví dụ để chứng minh được áp suất khí quyển tác dụng theo mọi phương."], "Vận dụng": ["Giải thích được hiện tượng bất thường khi con người thay đổi độ cao so với mặt đất.", "Giải thích được một số ứng dụng của áp suất không khí để phục vụ trong khoa học kĩ thuật và đời sống."], "Vận dụng cao": ["Mô tả phương án thiết kế một vật dụng để sử dụng trong sinh hoạt có ứng dụng áp suất khí quyển."] } }
+                    ]
+                },
+                {
+                    topic: "Tác dụng làm quay của lực",
+                    units: [
+                        { name: "Lực có thể làm quay vật", levels: { "Nhận biết": ["Lấy được ví dụ về chuyển động quay của một vật rắn quanh một trục cố định."], "Thông hiểu": ["Nêu được đặc điểm của ngẫu lực.", "Giải thích được cách vặn ốc,"], "Vận dụng": ["Vận dụng được tác dụng làm quay của lực để giải thích một số ứng dụng trong đời sống lao động (cách uốn, nắn một thanh kim loại để chúng thẳng hoặc tạo thành hình dạng khác nhau)."], "Vận dụng cao": ["Thiết kế phương án để uốn một thanh kim loại hình trụ nhỏ thành hình chữ O, L, U hoặc một vật dụng bất kì để sử dụng trong sinh hoạt."] } },
+                        { name: "Đòn bẩy và moment lực", levels: { "Nhận biết": ["Mô tả cấu tạo của đòn bẩy.", "Nêu được khi sử dụng đòn bẩy sẽ làm thay đổi lực tác dụng lên vật."], "Thông hiểu": ["Lấy được ví dụ thực tế trong lao động sản xuất trong việc sử dụng đòn bẩy và chỉ ra được nguyên nhân sử dụng đòn bẩy đúng cách sẽ giúp giảm sức người và ngược lại.", "Nêu được tác dụng làm quay của lực lên một vật quanh một điểm hoặc một trục được đặc trưng bằng moment lực."], "Vận dụng": ["Sử dụng đòn bẩy để giải quyết được một số vấn đề thực tiễn."], "Vận dụng cao": ["Thiết kế một vật dụng sinh hoạt cá nhân có sử dụng nguyên tắc đòn bẩy."] } }
+                    ]
+                },
+                {
+                    topic: "Điện",
+                    units: [
+                        { name: "Hiện tượng nhiễm điện", levels: { "Nhận biết": ["Lấy được ví dụ về hiện tượng nhiễm điện."], "Thông hiểu": ["Mô tả cách làm một vật bị nhiễm điện.", "Giải thích được sơ lược nguyên nhân một vật cách điện nhiễm điện do cọ xát.", "Chỉ ra được vật nhiễm điện chỉ có thể nhiễm một trong hai loại điện tích."], "Vận dụng": ["Giải thích được một vài hiện tượng thực tế liên quan đến sự nhiễm điện do cọ xát."], "Vận dụng cao": ["Vận dụng phản ứng liên kết ion để giải thích cơ chế vật nghiễm điện."] } },
+                        { name: "Nguồn điện", levels: { "Nhận biết": ["Nhận biết được kí hiệu nguồn điện.", "Nêu được nguồn điện có khả năng cung cấp năng lượng điện.", "Kể tên được một số nguồn điện trong thực tế."], "Thông hiểu": ["Nguồn điện 1 chiều luôn có 2 cực (âm, dương) cố định.", "Nguồn điện xoay chiều đổi cực liên tục."] } },
+                        { name: "Dòng điện và tác dụng", levels: { "Nhận biết": ["Phát biểu được định nghĩa về dòng điện.", "Kể tên được một số vật liệu dẫn điện và vật liệu không dẫn điện.", "Nêu được dòng điện có tác dụng: nhiệt, phát sáng, hoá học, sinh lí."], "Thông hiểu": ["Giải thích được nguyên nhân vật dẫn điện, vật không dẫn điện.", "Giải thích được tác dụng nhiệt của dòng điện.", "Giải thích được tác dụng phát sáng của dòng điện.", "Giải thích được tác dụng hóa học của dòng điện.", "Giải thích được tác dụng sinh lí của dòng điện."], "Vận dụng": ["Chỉ ra được các ví dụ trong thực tế về tác dụng của dòng điện và giải thích."], "Vận dụng cao": ["Thiết kế phương án (hay giải pháp) để làm một vật dụng điện hữu ích cho bản thân (hay đưa ra biện pháp sử dụng điện an toàn và hiệu quả)."] } },
+                        { name: "Đo cường độ dòng điện. Đo hiệu điện thế", levels: { "Nhận biết": ["Nêu được đơn vị cường độ dòng điện.", "Nhận biết được ampe kế, kí hiệu ampe kế trên hình vẽ.", "Nêu được đơn vị đo hiệu điện thế.", "Nhận biết được vôn kế, kí hiệu vôn kế trên hình vẽ.", "Nhận biết được điện trở (biến trở) kí hiệu của điện trở (biến trở)."], "Thông hiểu": ["Vẽ được mạch điện đơn giản gồm: nguồn điện, điện trở (biến trở), ampe kế.", "Vẽ được mạch điện đơn giản gồm: nguồn điện, điện trở (biến trở), vôn kế.", "Mắc được mạch điện đơn giản khi cho trước các thiết bị."], "Vận dụng": ["Xác định được cường độ dòng điện chạy qua một điện trở, hai điện trở mắc nối tiếp (hoặc hai điện trở mắc song song) khi biết trước các số liệu liên quan trong bài thí nghiệm (hoặc xác định bằng công thức Định luật Ôm cho đoạn mạch: I = U/R)", "Xác định được hiệu điện thế trên hai đầu đoạn mạch có hai điện trở mắc nối tiếp (hoặc mắc song song) khi biết trước các số liệu liên quan trong bài thí nghiệm (hoặc xác định giá trị bằng công thức Định luật Ôm cho đoạn mạch: I = U/R)"], "Vận dụng cao": ["Vận dụng công thức định luật Ôm để giải phương trình bậc nhất một ẩn số với đoạn mạch mắc hỗn hợp gồm 2 điện trở mắc song song và mắc nối tiếp với điện trở thứ ba {(R1 //R2)nt R3}."] } },
+                        { name: "Mạch điện đơn giản", levels: { "Nhận biết": ["Nhận biết kí hiệu mô tả: nguồn điện, điện trở, biến trở, chuông, ampe kế, vôn kế, cầu chì, đi ốt và đi ốt phát quang."], "Thông hiểu": ["Vẽ được mạch điện theo mô tả cách mắc.", "Mô tả được sơ lược công dụng của cầu chì (hoặc: rơ le, cầu dao tự động, chuông điện)."], "Vận dụng": ["Xác định được cường độ dòng điện của đoạn mạch gồm ba điện trở mắc nối tiếp (hoặc đoạn mạch gồm ba điện trở mắc song song)", "Xác định được hiệu điện thế của đoạn mạch gồm ba điện trở mắc nối tiếp (hoặc đoạn mạch gồm ba điện trở mắc song song)."] } }
+                    ]
+                },
+                {
+                    topic: "Nhiệt",
+                    units: [
+                        { name: "Năng lượng nhiệt", levels: { "Nhận biết": ["Nêu được khái niệm năng lượng nhiệt.", "Nêu được khái niệm nội năng."], "Thông hiểu": ["Nêu được, khi một vật được làm nóng, các phân tử của vật chuyển động nhanh hơn và nội năng của vật tăng. Cho ví dụ."], "Vận dụng": ["Giải thích được ví dụ trong thực tế trong các trường hợp làm tăng nội năng của vật hoặc làm giảm nội năng của vật giảm.", "Giải thích được sơ lược sự truyền năng lượng trong hiệu ứng nhà kính."], "Vận dụng cao": ["Trình bày được một số hậu quả do hiệu ứng nhà kính gây ra."] } },
+                        { name: "Dẫn nhiệt, đối lưu, bức xạ nhiệt", levels: { "Nhận biết": ["Kể tên được ba cách truyền nhiệt.", "Lấy được ví dụ về hiện tượng dẫn nhiệt.", "Lấy được ví dụ về hiện tượng đối lưu.", "Lấy được ví dụ về hiện tượng bức xạ nhiệt."], "Thông hiểu": ["Giải thích sơ lược được sự truyền năng lượng (truyền nhiệt) bằng cách dẫn nhiệt.", "Giải thích sơ lược được sự truyền năng lượng (truyền nhiệt) bằng cách đối lưu.", "Giải thích sơ lược được sự truyền năng lượng (truyền nhiệt) bằng cách bức xạ nhiệt."], "Vận dụng": ["Giải thích được một số hiện tượng quan sát thấy về truyền nhiệt trong tự nhiên bằng cách dẫn nhiệt.", "Giải thích được một số hiện tượng quan sát thấy về truyền nhiệt trong tự nhiên bằng cách đối lưu.", "Giải thích được một số hiện tượng quan sát thấy về truyền nhiệt trong tự nhiên bằng cách bức xạ nhiệt."], "Vận dụng cao": ["Trình bày ý tưởng khai thác nguồn năng lượng nhiệt trong nhiên để phục vụ trong sinh hoạt gia đình."] } },
+                        { name: "Sự nở vì nhiệt", levels: { "Nhận biết": ["Kể tên được một số vật liệu cách nhiệt kém.", "Kể tên được một số vật liệu dẫn nhiệt tốt."], "Thông hiểu": ["Phân tích được một số ví dụ về công dụng của vật dẫn nhiệt tốt.", "Phân tích được một số ví dụ về công dụng của vật cách nhiệt tốt."], "Vận dụng": ["Giải thích được ứng dụng của vật liệu cách nhiệt tốt được sử dụng trong kĩ thuật và đời sống.", "Giải thích được ứng dụng của vật liệu dẫn nhiệt tốt được sử dụng trong kĩ thuật và đời sống.", "Giải thích được một số ứng dụng của sự nở vì nhiệt trong kĩ thuật và đời sống."], "Vận dụng cao": ["Thiết kế phương án khai thác hoặc hạn chế nguồn năng lượng nhiệt trong nhiên để phục vụ trong sinh hoạt gia đình."] } }
+                    ]
+                }
+            ]
+        },
+        {
+            grade: "LỚP 9",
+            content: [
+                {
+                    topic: "Mở đầu",
+                    units: [{ name: "Mở đầu", levels: { "Nhận biết": ["Nhận biết được một số dụng cụ và hoá chất sử dụng trong dạy học môn Khoa học tự nhiên 9."], "Thông hiểu": ["* Trình bày được các bước viết và trình bày báo cáo."], "Vận dụng": ["Làm được bài thuyết trình một vấn đề khoa học."] } }]
+                },
+                {
+                    topic: "Kim loại",
+                    units: [
+                        { name: "Tính chất chung của kim loại", levels: { "Nhận biết": ["Nêu được tính chất vật lí của kim loại."], "Thông hiểu": ["*Trình bày được tính chất hoá học cơ bản của kim loại: Tác dụng với phi kim (oxygen, lưu huỳnh, chlorine), nước hoặc hơi nước, dung dịch hydrochloric acid (axit clohiđric), dung dịch muối.", "Mô tả được một số khác biệt về tính chất giữa các kim loại thông dụng (nhôm, sắt, vàng...)."] } },
+                        { name: "Dãy hoạt động hoá học", levels: { "Nhận biết": ["Nêu được dãy hoạt động hoá học (K, Na, Ca, Mg, Al, Zn, Fe, Pb, H, Cu, Ag, Au).", "Trình bày được ý nghĩa của dãy hoạt động hoá học."], "Thông hiểu": ["Tiến hành được một số thí nghiệm hoặc mô tả được thí nghiệm (qua hình vẽ hoặc học liệu điện tử thí nghiệm) khi cho kim loại tiếp xúc với nước, hydrochloric acid…"] } },
+                        { name: "Tách kim loại và việc sử dụng hợp kim", levels: { "Nhận biết": ["Nêu được phương pháp tách kim loại theo mức độ hoạt động hoá học của chúng.", "Nêu được khái niệm hợp kim.", "Nêu được thành phần, tính chất đặc trưng của một số hợp kim phổ biến, quan trọng, hiện đại."], "Thông hiểu": ["*Trình bày được quá trình tách một số kim loại có nhiều ứng dụng, như: Tách sắt ra khỏi iron (III) oxide; Tách nhôm ra khỏi aluminium oxide; Tách kẽm khỏi zinc sulfide", "Giải thích vì sao trong một số trường hợp thực tiễn, kim loại được sử dụng dưới dạng hợp kim;", "*Trình bày được các giai đoạn cơ bản sản xuất gang và thép trong lò cao từ nguồn quặng chứa iron (III) oxide."] } }
+                    ]
+                },
+                {
+                    topic: "Sự khác nhau cơ bản giữa phi kim và kim loại",
+                    units: [{ name: "Sự khác nhau cơ bản giữa phi kim và kim loại", levels: { "Nhận biết": ["Nêu được ứng dụng của một số đơn chất phi kim thiết thực trong cuộc sống (than, lưu huỳnh, khí chlorine…)."], "Thông hiểu": ["Chỉ ra được sự khác nhau cơ bản về một số tính chất giữa phi kim và kim loại: Khả năng dẫn điện, nhiệt độ nóng chảy, nhiệt độ sôi, khối lượng riêng; khả năng tạo ion dương, ion âm; phản ứng với oxygen tạo oxide acid, oxide base."] } }]
+                },
+                {
+                    topic: "Khai thác tài nguyên từ vỏ trái đất",
+                    units: [
+                        { name: "Sơ lược về hoá học vỏ Trái Đất", levels: { "Nhận biết": ["Nêu được hàm lượng các nguyên tố hoá học chủ yếu trong vỏ Trái Đất."], "Thông hiểu": ["Phân loại được các dạng chất chủ yếu trong vỏ Trái Đất (oxide, muối, …).", "* Trình bày được những lợi ích cơ bản về kinh tế, xã hội từ việc khai thác vỏ Trái Đất (nhiên liệu, vật liệu, nguyên liệu); lợi ích của sự tiết kiệm và bảo vệ nguồn tài nguyên, sử dụng vật liệu tái chế, … phục vụ cho sự phát triển bền vững."] } },
+                        { name: "Khai thác đá vôi", levels: { "Thông hiểu": ["*Trình bày được nguồn đá vôi, thành phần chính của đá vôi trong tự nhiên; các ứng dụng từ đá vôi: sản phẩm đá vôi nghiền, calcium oxide, calcium hydroxide, nguyên liệu sản xuất xi măng."] } },
+                        { name: "Công nghiệp silicate", levels: { "Nhận biết": ["Nêu được một số ứng dụng quan trọng của silicon (silic) và hợp chất của silicon.", "Trình bày được sơ lược ngành công nghiệp silicate."], "Thông hiểu": ["Mô tả được các công đoạn chính sản xuất đồ gốm, thuỷ tinh, xi măng."] } },
+                        { name: "Khai thác nhiên liệu hoá thạch", levels: { "Nhận biết": ["Nêu được khái niệm nhiên liệu hoá thạch.", "Nêu được một số giải pháp hạn chế việc sử dụng nhiên liệu hoá thạch"], "Thông hiểu": ["*Trình bày được lợi ích của việc sử dụng nhiên liệu hoá thạch và thực trạng của việc khai thác nhiên liệu hoá thạch hiện nay."] } },
+                        { name: "Nguồn carbon. Chu trình carbon và sự ấm lên toàn cầu", levels: { "Nhận biết": ["Nêu được một số dạng tồn tại phổ biến của nguyên tố carbon trong tự nhiên (than, kim cương, carbon dioxide, các muối carbonate, các hợp chất hữu cơ).", "Trình bày được nguồn gốc tự nhiên và nguồn gốc nhân tạo của methane (metan).", "Nêu được khí carbon dioxide và methane là nguyên nhân chính gây hiệu ứng nhà kính, sự ấm lên toàn cầu.", "Nêu được được một số biện pháp giảm lượng khí thải carbon dioxide ở trong nước và ở phạm vi toàn cầu."], "Thông hiểu": ["* Trình bày được sản phẩm và sự phát năng lượng từ quá trình đốt cháy than, các hợp chất hữu cơ; chu trình carbon trong tự nhiên và vai trò của carbon dioxide trong chu trình đó.", "* Trình bày được những bằng chứng của biến đổi khí hậu, thời tiết do tác động của sự ấm lên toàn cầu trong thời gian gần đây; những dự đoán về các tác động tiêu cực trước mắt và lâu dài."] } }
+                    ]
+                },
+                {
+                    topic: "Giới thiệu về chất hữu cơ",
+                    units: [{ name: "Giới thiệu về chất hữu cơ", levels: { "Nhận biết": ["Nêu được khái niệm hợp chất hữu cơ, hoá học hữu cơ.", "Nêu được khái niệm công thức phân tử, công thức cấu tạo và ý nghĩa của nó; đặc điểm cấu tạo hợp chất hữu cơ.", "Trình bày được sự phân loại sơ bộ hợp chất hữu cơ gồm hydrocarbon (hiđrocacbon) và dẫn xuất của hydrocarbon.", "Phân biệt được chất vô cơ hay hữu cơ theo công thức phân tử."] } }]
+                },
+                {
+                    topic: "Hydrocarbon (hiđrocacbon) và nguồn nhiên liệu",
+                    units: [
+                        { name: "Hydrocarbon. Alkane (ankan)", levels: { "Nhận biết": ["Nêu được khái niệm hydrocarbon, alkane.", "Trình bày được ứng dụng làm nhiên liệu của alkane trong thực tiễn."], "Thông hiểu": ["Viết được công thức cấu tạo và gọi tên được một số alkane (ankan) đơn giản và thông dụng (C1 –C4).", "Viết được phương trình hoá học phản ứng đốt cháy của butane.", "Tiến hành được (hoặc quan sát qua học liệu điện tử) thí nghiệm đốt cháy butane từ đó rút ra được tính chất hoá học cơ bản của alkane."] } },
+                        { name: "Alkene (Anken)", levels: { "Nhận biết": ["Nêu được khái niệm về alkene.", "Nêu được tính chất vật lí của ethylene.", "Trình bày được một số ứng dụng của ethylene: tổng hợp ethylic alcohol, tổng hợp nhựa polyethylene (PE)."], "Thông hiểu": ["Viết được công thức cấu tạo của ethylene.", "*Trình bày được tính chất hoá học của ethylene (phản ứng cháy, phản ứng làm mất màu nước bromine (nước brom), phản ứng trùng hợp. Viết được các phương trình hoá học xảy ra.", "Tiến hành được thí nghiệm (hoặc quan sát thí nghiệm) của ethylene: phản ứng đốt cháy, phản ứng làm mất màu nước bromine, quan sát và giải thích được tính chất hoá học cơ bản của alkene."] } },
+                        { name: "Nguồn nhiên liệu", levels: { "Nhận biết": ["Nêu được khái niệm, thành phần, trạng thái tự nhiên của dầu mỏ, khí thiên nhiên và khí mỏ dầu.", "Nêu được khái niệm về nhiên liệu, các dạng nhiên liệu phổ biến (rắn, lỏng, khí)."], "Thông hiểu": ["*Trình bày được phương pháp khai thác dầu mỏ, khí thiên nhiên và khí mỏ dầu; một số sản phẩm chế biến từ dầu mỏ; ứng dụng của dầu mỏ và khí thiên nhiên (là nguồn nhiên liệu và nguyên liệu quý trong công nghiệp)."], "Vận dụng": ["*Trình bày được cách sử dụng nhiên liệu (gas, dầu hỏa, than...), từ đó có cách ứng xử thích hợp đối với việc sử dụng nhiên liệu (gas, xăng, dầu hỏa, than…) trong cuộc sống."] } }
+                    ]
+                },
+                {
+                    topic: "Ethylic alcohol và acetic acid",
+                    units: [
+                        { name: "Ethylic alcohol", levels: { "Nhận biết": ["Nêu được khái niệm và ý nghĩa của độ cồn.", "Nêu được ứng dụng của ethylic alcohol (dung môi, nhiên liệu,…).", "Trình bày được tác hại của việc lạm dụng rượu bia.", "Quan sát mẫu vật hoặc hình ảnh, trình bày được một số tính chất vật lí của ethylic alcohol: trạng thái, màu sắc, mùi vị, tính tan, khối lượng riêng, nhiệt độ sôi."], "Thông hiểu": ["Viết được công thức phân tử, công thức cấu tạo và nêu được đặc điểm cấu tạo của ethylic alcohol.", "*Trình bày được tính chất hoá học của ethylic alcohol: phản ứng cháy, phản ứng với natri. Viết được các phương trình hoá học xảy ra.", "Tiến hành được (hoặc quan sát qua video) thí nghiệm phản ứng cháy, phản ứng với natri của ethylic alcohol, nêu và giải thích hiện tượng thí nghiệm, nhận xét và rút ra kết luận về tính chất hoá học cơ bản của ethylic alcohol.", "Trình bày được phương pháp điều chế ethylic alcohol từ tinh bột và từ ethylene."] } },
+                        { name: "Acetic acid", levels: { "Nhận biết": ["Nêu được khái niệm ester và phản ứng ester hoá.", "Trình bày được ứng dụng của acetic acid (làm nguyên liệu, làm giấm).", "Quan sát mẫu vật hoặc hình ảnh, trình bày được một số tính chất vật lí của acetic acid: trạng thái, màu sắc, mùi vị, tính tan, khối lượng riêng, nhiệt độ sôi."], "Thông hiểu": ["Quan sát mô hình hoặc hình vẽ, viết được công thức phân tử, công thức cấu tạo; nêu được đặc điểm cấu tạo của acid acetic.", "*Trình bày được tính chất hoá học của acetic acid: phản ứng với quỳ tím, đá vôi, kim loại, oxide kim loại, base, phản ứng cháy, phản ứng ester hoá, viết được các phương trình hoá học xảy ra.", "Tiến hành được (hoặc quan sát qua video) thí nghiệm của acid acetic (phản ứng với quỳ tím, đá vôi, kim loại, oxide kim loại, base, phản ứng cháy, phản ứng ester hoá), nhận xét, rút ra được tính chất hoá học cơ bản của acetic acid."] } }
+                    ]
+                },
+                {
+                    topic: "Lipid – carbohydrate – protein",
+                    units: [
+                        { name: "Lipid (chất béo)", levels: { "Nhận biết": ["Nêu được khái niệm lipid và chất béo, công thức tổng quát của chất béo đơn giản là (R–COO)3C3H5, đặc điểm cấu tạo.", "Trình bày được tính chất vật lí của chất béo (trạng thái, tính tan).", "Nêu được vai trò của lipid tham gia vào cấu tạo tế bào và tích lũy năng lượng trong cơ thể.", "Trình bày được ứng dụng của chất béo."], "Thông hiểu": ["*Trình bày được tính chất hoá học (phản ứng xà phòng hoá), viết được phương trình hoá học xảy ra."], "Vận dụng": ["Đề xuất biện pháp sử dụng chất béo cho phù hợp trong việc ăn uống hàng ngày để có cơ thể khoẻ mạnh, tránh được bệnh béo phì."] } },
+                        { name: "Glucose và saccharose", levels: { "Nhận biết": ["Nêu được thành phần nguyên tố, công thức chung của carbohydrate.", "Nêu được công thức phân tử, trạng thái tự nhiên, tính chất vật lí (trạng thái, màu sắc, mùi, vị, tính tan, khối lượng riêng) của glucose và saccharose.", "Trình bày được vai trò và ứng dụng của glucose (chất dinh dưỡng quan trọng của nguời và động vật) và của saccharose (nguyên liệu quan trọng trong công nghiệp thực phẩm)."], "Thông hiểu": ["*Trình bày được tính chất hoá học của glucose (phản ứng tráng bạc, phản ứng lên men rượu), của saccharose (phản ứng thuỷ phân có xúc tác axit hoặc enzyme), viết được các phương trình hoá học xảy ra dưới dạng công thức phân tử."], "Vận dụng": ["Nhận biết được các loại thực phẩm giàu saccharose và hoa quả giàu glucose.", "Ý thức được tầm quan trọng của việc sử dụng hợp lí saccharose."] } },
+                        { name: "Tinh bột và cellulose", levels: { "Nhận biết": ["Nêu được trạng thái tự nhiên, tính chất vật lí của tinh bột và cellulose.", "Nêu được tầm quan trọng của sự tạo thành tinh bột, cellulose trong cây xanh."], "Thông hiểu": ["* Trình bày được ứng dụng của tinh bột và cellulose trong đời sống và sản xuất, sự tạo thành tinh bột, cellulose và vai trò của chúng trong cây xanh.", "*Trình bày được tính chất hoá học của tinh bột và cellulose (xenlulozơ): phản ứng thuỷ phân; hồ tinh bột có phản ứng màu với iodine (iot), viết được các phương trình hoá học của phản ứng thuỷ phân dưới dạng công thức phân tử.", "Tiến hành được (hoặc quan sát qua video) thí nghiệm phản ứng thuỷ phân; phản ứng màu với iodine; nêu được hiện tượng thí nghiệm, nhận xét và rút ra kết luận về tính chất hoá học của tinh bột và cellulose (xenlulozơ)."], "Vận dụng": ["Nhận biết được các loại lương thực, thực phẩm giàu tinh bột và biết cách sử dụng hợp lí tinh bột."] } },
+                        { name: "Protein", levels: { "Nhận biết": ["Nêu được khái niệm, đặc điểm cấu tạo phân tử (do nhiều amino acid tạo nên, liên kết peptit) và khối lượng phân tử của protein.", "Trình bày được vai trò của protein trong cơ thể sống (chất dinh dưỡng, enzyme, hormone, kháng thể…)."], "Thông hiểu": ["*Trình bày được tính chất hoá học của protein: Phản ứng thuỷ phân có xúc tác acid, base hoặc enzyme, bị đông tụ khi có tác dụng của acid, base hoặc nhiệt độ; dễ bị phân huỷ khi đun nóng mạnh.", "Tiến hành được (hoặc quan sát qua video) thí nghiệm của protein: bị đông tụ khi có tác dụng của HCl, nhiệt độ, dễ bị phân huỷ khi đun nóng mạnh.", "Phân biệt được protein (len lông cừu, tơ tằm) với chất khác (tơ nylon)."] } }
+                    ]
+                },
+                {
+                    topic: "Polymer (polime)",
+                    units: [{ name: "Polymer (polime)", levels: { "Nhận biết": ["Nêu được khái niệm polymer, monomer, mắt xích…, cấu tạo, phân loại polymer (polymer thiên nhiên và polymer tổng hợp).", "Trình bày được tính chất vật lí chung của polymer (trạng thái, khả năng tan).", "Nêu được khái niệm chất dẻo, tơ, cao su, vật liệu composite và cách sử dụng, bảo quản một số vật dụng làm bằng chất dẻo, tơ, cao su trong gia đình an toàn, hiệu quả.", "Trình bày được ứng dụng của polyethylene."], "Thông hiểu": ["Viết được các phương trình hoá học của phản ứng điều chế PE, PP từ các monomer."], "Vận dụng": ["*Trình bày được vấn đề ô nhiễm môi trường khi sử dụng polymer không phân huỷ sinh học (polyethylene) và các cách hạn chế gây ô nhiễm môi trường khi sử dụng vật liệu polymer trong đời sống."] } }]
+                },
+                {
+                    topic: "Hiện tượng di truyền",
+                    units: [{ name: "Khái niệm di truyền, biến dị", levels: { "Nhận biết": ["Nêu được khái niệm di truyền và biến dị.", "Nêu được gene quy định di truyền và biến dị ở sinh vật."], "Thông hiểu": ["Giải thích được vì sao gene được xem là trung tâm của di truyền học."] } }]
+                },
+                {
+                    topic: "Mendel và khái niệm nhân tố di truyền (gene)",
+                    units: [
+                        { name: "Phương pháp nghiên cứu di truyền của Mendel", levels: { "Nhận biết": ["Nêu được ý tưởng của Mendel là cơ sở cho những nghiên cứu về nhân tố di truyền (gene)."] } },
+                        { name: "Thuật ngữ, kí hiệu", levels: { "Thông hiểu": ["Dựa vào thí nghiệm lai một cặp tính trạng, nêu được các thuật ngữ trong nghiên cứu các quy luật di truyền: tính trạng, nhân tố di truyền, cơ thể thuần chủng, cặp tính trạng tương phản, tính trạng trội, tính trạng lặn, kiểu hình, kiểu gene, allele (alen), dòng thuần.", "Phân biệt, sử dụng được một số kí hiệu trong nghiên cứu di truyền học (P, F1, F2, …)."] } },
+                        { name: "Lai 1 cặp tính trạng", levels: { "Thông hiểu": ["Dựa vào công thức lai 1 cặp tính trạng và kết quả lai trong thí nghiệm của Mendel, phát biểu được quy luật phân li, giải thích được kết quả thí nghiệm theo Mendel.", "Trình bày được thí nghiệm lai phân tích. Nêu được vai trò của phép lai phân tích."] } },
+                        { name: "Lai 2 cặp tính trạng", levels: { "Thông hiểu": ["Dựa vào công thức lai 2 cặp tính trạng và kết quả lai trong thí nghiệm của Mendel, phát biểu được quy luật phân li độc lập và tổ hợp tự do, giải thích được kết quả thí nghiệm theo Mendel."] } }
+                    ]
+                },
+                {
+                    topic: "Từ gene đến protein",
+                    units: [
+                        { name: "Bản chất hoá học của gene", levels: { "Nhận biết": ["Nêu được khái niệm nucleic acid, kể tên được các loại nucleic acid: DNA và RNA.", "Nêu được chức năng của DNA trong việc lưu giữ, bảo quản, truyền đạt thông tin di truyền.", "Nêu được khái niệm gene."], "Thông hiểu": ["Thông qua hình ảnh, mô tả được DNA có cấu trúc xoắn kép, gồm các đơn phân là 4 loại nucleotide, các nucleotide liên kết giữa 2 mạch theo nguyên tắc bổ sung.", "Giải thích được vì sao chỉ từ 4 loại nucleotide nhưng tạo ra được sự đa dạng của phân tử DNA."] } },
+                        { name: "Đột biến gene", levels: { "Thông hiểu": ["Nêu được sơ lược về tính đặc trưng cá thể của hệ gene và một số ứng dụng của phân tích DNA trong xác định huyết thống, truy tìm tội phạm,…", "Phát biểu được khái niệm đột biến gene. Lấy được ví dụ minh hoạ.", "Trình bày được ý nghĩa và tác hại của đột biến gene."] } },
+                        { name: "Quá trình tái bản DNA", levels: { "Thông hiểu": ["Quan sát hình ảnh (hoặc sơ đồ), mô tả sơ lược quá trình tái bản của DNA gồm các giai đoạn: tháo xoắn tách hai mạch đơn, các nucleotide tự do trong môi trường tế bào kết hợp 2 mạch đơn theo nguyên tắc bổ sung. Kết quả tạo 2 DNA con giống DNA mẹ, từ đó nêu được ý nghĩa di truyền của tái bản DNA."] } },
+                        { name: "Quá trình phiên mã", levels: { "Thông hiểu": ["Dựa vào sơ đồ, hình ảnh quá trình phiên mã, nêu được khái niệm phiên mã.", "Trình bày được RNA có cấu trúc 1 mạch, chứa 4 loại ribonucleotide.", "Phân biệt được các loại RNA dựa vào chức năng."] } },
+                        { name: "Quá trình dịch mã", levels: { "Nhận biết": ["Nêu được khái niệm mã di truyền"], "Thông hiểu": ["Dựa vào sơ đồ hoặc hình ảnh quá trình dịch mã, nêu được khái niệm dịch mã.", "Giải thích được từ 4 loại nucleotide tạo ra được sự đa dạng của mã di truyền; nêu được ý nghĩa của đa dạng mã di truyền, mã di truyền quy định thành phần hoá học và cấu trúc của protein."] } },
+                        { name: "Từ gene đến tính trạng", levels: { "Thông hiểu": ["Dựa vào sơ đồ, nêu được mối quan hệ giữa DNA – RNA – protein – tính trạng thông qua phiên mã, dịch mã và ý nghĩa di truyền của mối quan hệ này."], "Vận dụng": ["Vận dụng kiến thức “từ gene đến tính trạng”, giải thích được cơ sở của sự đa dạng về tính trạng của các loài."] } }
+                    ]
+                },
+                {
+                    topic: "Nhiễm sắc thể",
+                    units: [
+                        { name: "Khái niệm và cấu trúc nhiễm sắc thể", levels: { "Nhận biết": ["Nêu được khái niệm nhiễm sắc thể."], "Thông hiểu": ["Mô tả được hình dạng nhiễm sắc thể thông qua hình vẽ nhiễm sắc thể ở kì giữa với tâm động, các cánh.", "Dựa vào hình ảnh (hoặc mô hình, học liệu điện tử) mô tả được cấu trúc nhiễm sắc thể có lõi là DNA và cách sắp xếp của gene trên nhiễm sắc thể."], "Vận dụng": ["Quan sát được tiêu bản nhiễm sắc thể dưới kính hiển vi."] } },
+                        { name: "Đặc trưng bộ nhiễm sắc thể", levels: { "Thông hiểu": ["Lấy được ví dụ chứng minh mỗi loài có bộ nhiễm sắc thể đặc trưng.", "Phân biệt được bộ nhiễm sắc thể lưỡng bội, đơn bội. Lấy được ví dụ minh hoạ."] } },
+                        { name: "Đột biến nhiễm sắc thể", levels: { "Thông hiểu": ["Nêu được khái niệm đột biến nhiễm sắc thể. Lấy được ví dụ minh hoạ.", "Trình bày được ý nghĩa và tác hại của đột biến nhiễm sắc thể."] } }
+                    ]
+                },
+                {
+                    topic: "Di truyền nhiễm sắc thể",
+                    units: [
+                        { name: "Nguyên phân", levels: { "Thông hiểu": ["Dựa vào hình vẽ (hoặc sơ đồ, học liệu điện tử) về quá trình nguyên phân nêu được khái niệm nguyên phân."] } },
+                        { name: "Giảm phân", levels: { "Thông hiểu": ["Dựa vào hình vẽ (hoặc sơ đồ, học liệu điện tử) về quá trình giảm phân nêu được khái niệm giảm phân.", "Trình bày được cơ chế biến dị tổ hợp thông qua sơ đồ đơn giản về quá trình giảm phân và thụ tinh (minh hoạ bằng sơ đồ lai 2 cặp gene).", "Phân biệt được nguyên phân và giảm phân; nêu được ý nghĩa của nguyên phân, giảm phân trong di truyền và mối quan hệ giữa hai quá trình này trong sinh sản hữu tính.", "Nêu được nhiễm sắc thể vừa là vật chất mang thông tin di truyền vừa là đơn vị truyền đạt vật chất di truyền qua các thế hệ tế bào và cơ thể."], "Vận dụng": ["Trình bày được các ứng dụng và lấy được ví dụ của nguyên phân và giảm phân trong thực tiễn."] } },
+                        { name: "Cơ chế xác định giới tính", levels: { "Nhận biết": ["Nêu khái niệm nhiễm sắc thể giới tính và nhiễm sắc thể thường."], "Thông hiểu": ["Trình bày được cơ chế xác định giới tính. Nêu được một số yếu tố ảnh hưởng đến sự phân hoá giới tính."] } },
+                        { name: "Di truyền liên kết", levels: { "Thông hiểu": ["Dựa vào sơ đồ phép lai trình bày được khái niệm di truyền liên kết và phân biệt với quy luật phân li độc lập.", "Nêu được một số ứng dụng về di truyền liên kết trong thực tiễn."] } }
+                    ]
+                },
+                {
+                    topic: "Di truyền học với con người",
+                    units: [
+                        { name: "Tính trạng ở người", levels: { "Nhận biết": ["Nêu được một số ví dụ về tính trạng ở người."] } },
+                        { name: "Bệnh và tật di truyền ở người", levels: { "Nhận biết": ["Nêu được khái niệm về bệnh và tật di truyền ở người.", "Kể tên được một số hội chứng và bệnh di truyền ở người (Down, Turner, bệnh câm điếc bẩm sinh, bạch tạng)."], "Thông hiểu": ["Trình bày được một số tác nhân gây bệnh di truyền như: các chất phóng xạ từ các vụ nổ, thử vũ khí hạt nhân, hoá chất do công nghiệp, thuốc trừ sâu, diệt cỏ.", "Dựa vào ảnh (hoặc học liệu điện tử) kể tên được một số tật di truyền ở người (hở khe môi, hàm; dính ngón tay)."], "Vận dụng cao": ["Tìm hiểu được một số bệnh di truyền ở địa phương."] } },
+                        { name: "Di truyền học với hôn nhân", levels: { "Nhận biết": ["Nêu được vai trò của di truyền học với hôn nhân.", "Nêu được ý nghĩa của việc cấm kết hôn gần huyết thống."], "Thông hiểu": ["Trình bày được quan điểm về lựa chọn giới tính trong sinh sản ở người."], "Vận dụng cao": ["Tìm hiểu được tuổi kết hôn ở địa phương."] } }
+                    ]
+                },
+                {
+                    topic: "Ứng dụng công nghệ di truyền vào đời sống",
+                    units: [
+                        { name: "Ứng dụng công nghệ di truyền", levels: { "Thông hiểu": ["Nêu được một số ứng dụng công nghệ di truyền trong y học, pháp y, làm sạch môi trường, nông nghiệp, an toàn sinh học."], "Vận dụng cao": ["Tìm hiểu được một số sản phẩm ứng dụng công nghệ di truyền tại địa phương."] } },
+                        { name: "Đạo đức sinh học", levels: { "Thông hiểu": ["Nêu được một số vấn đề về đạo đức sinh học trong nghiên cứu và ứng dụng công nghệ di truyền."] } }
+                    ]
+                },
+                {
+                    topic: "Tiến hoá",
+                    units: [
+                        { name: "Khái niệm tiến hoá", levels: { "Nhận biết": ["Phát biểu được khái niệm tiến hoá."] } },
+                        { name: "Chọn lọc tự nhiên", levels: { "Nhận biết": ["Phát biểu được khái niệm chọn lọc tự nhiên."], "Thông hiểu": ["Dựa vào các hình ảnh hoặc sơ đồ, mô tả được quá trình chọn lọc tự nhiên.", "Thông qua phân tích các ví dụ về tiến hoá thích nghi, chứng minh được vai trò của chọn lọc tự nhiên đối với sự hình thành đặc điểm thích nghi và đa dạng của sinh vật."] } },
+                        { name: "Chọn lọc nhân tạo", levels: { "Nhận biết": ["Phát biểu được khái niệm chọn lọc nhân tạo."], "Thông hiểu": ["Trình bày được một số bằng chứng của quá trình chọn lọc do con người tiến hành đưa đến sự đa dạng và thích nghi của các loài vật nuôi và cây trồng từ vài dạng hoang dại ban đầu."] } },
+                        { name: "Cơ chế tiến hoá", levels: { "Nhận biết": ["Nêu được quan điểm của Lamark về cơ chế tiến hoá."], "Thông hiểu": ["Trình bày được quan điểm của Darwin về cơ chế tiến hoá.", "Trình bày được một số luận điểm về tiến hoá theo quan niệm của thuyết tiến hoá tổng hợp hiện đại (cụ thể: nguồn biến dị di truyền của quần thể, các nhân tố tiến hoá, cơ chế tiến hoá lớn)."] } },
+                        { name: "Sự phát sinh và phát triển sự sống trên Trái Đất", levels: { "Thông hiểu": ["Dựa vào sơ đồ, trình bày được khái quát sự phát triển của thế giới sinh vật trên Trái Đất; nguồn gốc xuất hiện của sinh vật nhân thực từ sinh vật nhân sơ; sự xuất hiện và sự đa dạng hoá của sinh vật đa bào.", "Dựa vào sơ đồ, trình bày được khái quát sự hình thành loài người."] } }
+                    ]
+                },
+                {
+                    topic: "Năng lượng cơ học",
+                    units: [
+                        { name: "Động năng và thế năng", levels: { "Nhận biết": ["Viết được biểu thức tính động năng của vật.", "Viết được biểu thức tính thế năng của vật ở gần mặt đất."], "Vận dụng": ["Vận dụng công thức tính động năng để xác định các đại lượng còn lại trong công thức khi đã biết trước 2 đại lượng.", "Vận dụng công thức tính thế năng để xác định các đại lượng còn lại trong công thức khi đã biết trước 2 đại lượng."] } },
+                        { name: "Cơ năng", levels: { "Nhận biết": ["Nêu được cơ năng là tổng động năng và thế năng của vật."], "Vận dụng": ["Vận dụng khái niệm cơ năng phân tích được sự chuyển hoá năng lượng trong một số trường hợp đơn giản."], "Vận dụng cao": ["Vận dụng kiến thức “Định luật bảo toàn và chuyển hóa năng lượng”, chế tạo các vật dụng đơn giản phục vụ cho đời sống. Ví dụ: mô hình máy phát điện gió, mô hình nhà máy thủy điện…"] } },
+                        { name: "Công và công suất", levels: { "Nhận biết": ["Liệt kê được một số đơn vị thường dùng đo công và công suất."], "Thông hiểu": ["Phân tích ví dụ cụ thể để rút ra được: công có giá trị bằng lực nhân với quãng đường dịch chuyển theo hướng của lực, công suất là tốc độ thực hiện công."], "Vận dụng": ["Tính được công và công suất trong một số trường hợp đơn giản: Vận dụng được công thức A = F.s để giải được các bài tập tìm một đại lượng khi biết giá trị của 2 đại lượng còn lại; Vận dụng được công thức P = A/t để giải được các bài tập tìm một đại lượng khi biết giá trị của 2 đại lượng còn lại."], "Vận dụng cao": ["Tính được công và công suất của một số trường hợp trong thực tế đời sống", "Vận dụng, tổng hợp kiến thức “Công và công suất”, đề xuất các phương án gải quyết các vấn đề trong cuộc sống: Khi đưa một vật lên cao, khi kéo 1 vật nặng….."] } }
+                    ]
+                },
+                {
+                    topic: "Ánh sáng",
+                    units: [
+                        { name: "Sự khúc xạ", levels: { "Nhận biết": ["Nêu được chiết suất có giá trị bằng tỉ số tốc độ ánh sáng trong không khí (hoặc chân không) với tốc độ ánh sáng trong môi trường.", "Phát biểu được định luật khúc xạ ánh sáng."], "Vận dụng": ["Thực hiện thí nghiệm chứng tỏ được khi truyền từ môi trường này sang môi trường khác, tia sáng có thể bị khúc xạ (bị lệch khỏi phương truyền ban đầu).", "Thực hiện được thí nghiệm để rút ra định luật khúc xạ ánh sáng.", "Vận dụng được biểu thức n = sini / sinr trong một số trường hợp đơn giản."] } },
+                        { name: "Lăng kính – Sự tán sắc – Màu sắc", levels: { "Nhận biết": ["Nêu được khái niệm về ánh sáng màu.", "Nêu được màu sắc của một vật được nhìn thấy phụ thuộc vào màu sắc của ánh sáng bị vật đó hấp thụ và phản xạ."], "Thông hiểu": ["Vẽ được sơ đồ đường truyền của tia sáng qua lăng kính.", "Giải thích được một cách định tính sự tán sắc ánh sáng Mặt Trời qua lăng kính."], "Vận dụng": ["Thực hiện thí nghiệm với lăng kính tạo được quang phổ của ánh sáng trắng qua lăng kính.", "Vận dụng kiến thức về sự truyền ánh sáng, màu sắc ánh sáng, giải thích được một số hiện tượng đơn giản thường gặp trong thực tế."] } },
+                        { name: "Sự phản xạ toàn phần", levels: { "Vận dụng": ["Thực hiện thí nghiệm để rút ra được điều kiện xảy ra phản xạ toàn phần và xác định được góc tới hạn"] } },
+                        { name: "Thấu kính", levels: { "Nhận biết": ["Nêu được các khái niệm: quang tâm, trục chính, tiêu điểm chính và tiêu cự của thấu kính.", "Nêu được các đặc điểm về ảnh của một vật tạo bởi thấu kính hội tụ.", "Nhận biết được thấu kính phân kì.", "Nêu được các đặc điểm về ảnh của một vật tạo bởi thấu kính phân kì."], "Thông hiểu": ["Giải thích được nguyên lí hoạt động của thấu kính bằng việc sử dụng sự khúc xạ của một số các lăng kính nhỏ.", "Mô tả được đường truyền của tia sáng đặc biệt qua thấu kính hội tụ.", "Giải thích được đặc điểm về ảnh của một vật tạo bởi thấu kính hội tụ."], "Vận dụng": ["Tiến hành thí nghiệm rút ra được đường đi một số tia sáng qua thấu kính (tia qua quang tâm, tia song song quang trục chính).", "Thực hiện thí nghiệm khẳng định được: Ảnh thật là ảnh hứng được trên màn; ảnh ảo là ảnh không hứng được trên màn.", "Vẽ được ảnh qua thấu kính.", "Vẽ được sơ đồ tỉ lệ để giải các bài tập đơn giản về thấu kính hội tụ", "Đo được tiêu cự của thấu kính hội tụ bằng dụng cụ thực hành."], "Vận dụng cao": ["Giải bài tập nâng cao về thấu kính hội tụ: VD: dịch chuyển thấu kính, ghép thấu kính"] } },
+                        { name: "Kính lúp", levels: { "Thông hiểu": ["Mô tả được cấu tạo và sử dụng được kính lúp."] } }
+                    ]
+                },
+                {
+                    topic: "Điện",
+                    units: [
+                        { name: "Điện trở", levels: { "Nhận biết": ["Nêu được (không yêu cầu thành lập): Công thức tính điện trở của một đoạn dây dẫn (theo độ dài, tiết diện, điện trở suất); công thức tính điện trở tương đương của đoạn mạch một chiều nối tiếp, song song.", "Nêu được điện trở có tác dụng cản trở dòng điện trong mạch."], "Thông hiểu": ["Thực hiện thí nghiệm đơn giản để nêu được điện trở có tác dụng cản trở dòng điện trong mạch."], "Vận dụng": ["Sử dụng công thức đã cho để tính được điện trở của một đoạn dây dẫn"], "Vận dụng cao": ["Vận dụng công thức tính điện trở để giải một số bài tập nâng cao"] } },
+                        { name: "Định luật Ohm", levels: { "Nhận biết": ["Phát biểu được định luật Ôm đối với đoạn mạch có điện trở.", "Viết được công thức định luật Ohm: I=U/R; Nêu ý nghĩa và đơn vị các đại lượng trong công thức."], "Thông hiểu": ["Thực hiện thí nghiệm để xây dựng được định luật Ohm: cường độ dòng điện đi qua một đoạn dây dẫn tỉ lệ thuận với hiệu điện thế giữa hai đầu đoạn dây và tỉ lệ nghịch với điện trở của nó."] } },
+                        { name: "Đoạn mạch một chiều mắc nối tiếp, song song", levels: { "Nhận biết": ["Biết được trong đoạn mạch có các yếu tố nối tiếp: I = I1 = I2 = … = In; U = U1 + U2 + … + Un", "Biết được trong đoạn mạch có các yếu tố song song: I = I1 + I2 + … + In; U = U1 = U2 = … = Un", "Viết được công thức tính điện trở tương đương của đoạn mạch gồm hai điện trở mắc nối tiếp: Rtđ = R1 + R2", "Viết được công thức tính điện trở tương đương của đoạn mạch gồm hai điện trở mắc song song: 1/Rtđ = 1/R1 + 1/R2"], "Thông hiểu": ["Lắp được mạch điện và đo được giá trị cường độ dòng điện trong một đoạn mạch điện mắc nối tiếp.", "Lắp được mạch điện và đo được giá trị cường độ dòng điện trong một đoạn mạch điện mắc song song."], "Vận dụng": ["Thực hiện thí nghiệm để rút ra được: Trong đoạn mạch điện mắc nối tiếp, cường độ dòng điện là như nhau cho mọi điểm; trong đoạn mạch điện mắc song song, tổng cường độ dòng điện trong các nhánh bằng cường độ dòng điện chạy trong mạch chính.", "Sử dụng công thức đã cho để tính được điện trở tương đương của đoạn mạch một chiều mắc nối tiếp, mắc song song trong một số trường hợp đơn giản.", "Tính được cường độ dòng điện trong đoạn mạch một chiều mắc nối tiếp, mắc song song, trong một số trường hợp đơn giản."], "Vận dụng cao": ["Tính được điện trở tương đương và cường độ dòng điện trong đoạn mạch hỗn hợp"] } },
+                        { name: "Năng lượng của dòng điện và công suất điện", levels: { "Nhận biết": ["Nêu được công suất điện định mức của dụng cụ điện (công suất mà dụng cụ tiêu thụ khi hoạt động bình thường).", "Lấy ví dụ để chứng tỏ được dòng điện có năng lượng."], "Vận dụng": ["Tính được năng lượng của dòng điện và công suất điện trong trường hợp đơn giản."] } }
+                    ]
+                },
+                {
+                    topic: "Điện từ",
+                    units: [
+                        { name: "Cảm ứng điện từ", levels: { "Nhận biết": ["Biết rằng khi số đường sức từ xuyên qua tiết diện của cuộn dây dẫn kín biến thiên thì trong cuộn dây đó xuất hiện dòng điện cảm ứng."], "Thông hiểu": ["Thực hiện thí nghiệm để rút ra được: Khi số đường sức từ xuyên qua tiết diện của cuộn dây dẫn kín biến thiên thì trong cuộn dây đó xuất hiện dòng điện cảm ứng."] } },
+                        { name: "Nguyên tắc tạo ra dòng điện xoay chiều", levels: { "Nhận biết": ["Nêu được khái niệm của dòng điện xoay chiều.", "Nêu được nguyên tắc tạo ra dòng điện xoay chiều (dòng điện luân phiên đổi chiều)", "Nêu được dấu hiệu chính để phân biệt dòng điện xoay chiều với dòng điện một chiều."], "Thông hiểu": ["Thực hiện thí nghiệm để nêu được nguyên tắc tạo ra dòng điện xoay chiều (dòng điện luân phiên đổi chiều)."], "Vận dụng cao": ["Vận dụng nguyên tắc tạo ra dòng điện xoay chiều để chế tạo được máy phát điện mini, vận hành và giải thích nguyên tắt hoạt động của nó."] } },
+                        { name: "Tác dụng của dòng điện xoay chiều", levels: { "Nhận biết": ["Nêu được các tác dụng của dòng điện xoay chiều."], "Thông hiểu": ["Lấy được ví dụ chứng tỏ dòng điện xoay chiều có tác dụng nhiệt, phát sáng, tác dụng từ, tác dụng sinh lí"] } }
+                    ]
+                },
+                {
+                    topic: "Năng lượng với cuộc sống",
+                    units: [
+                        { name: "Vòng năng lượng trên Trái Đất", levels: { "Nhận biết": ["Nhận biết được các dạng năng lượng trên Trái đất."], "Thông hiểu": ["Mô tả vòng năng lượng trên Trái Đất để rút ra được: năng lượng của Trái Đất đến từ Mặt Trời."] } },
+                        { name: "Năng lượng hoá thạch", levels: { "Nhận biết": ["Nêu được sơ lược ưu điểm và nhược điểm của năng lượng hoá thạch."], "Thông hiểu": ["Lấy được ví dụ chứng tỏ việc đốt cháy các nhiên liệu hoá thạch có thể gây ô nhiễm môi trường."], "Vận dụng": ["Thảo luận để chỉ ra được giá nhiên liệu phụ thuộc vào chi phí khai thác nó"] } },
+                        { name: "Năng lượng tái tạo", levels: { "Nhận biết": ["Nêu được sơ lược ưu điểm và nhược điểm của một số dạng năng lượng tái tạo (năng lượng Mặt Trời, năng lượng từ gió, năng lượng từ sóng biển, năng lượng từ dòng sông)."], "Vận dụng": ["Thảo luận để nêu được một số biện pháp sử dụng hiệu quả năng lượng và bảo vệ môi trường."] } }
+                    ]
+                }
+            ]
+        }
+    ];
+
+    // Global state
+    let topics = ['Chủ đề 1', 'Chủ đề 2', 'Chủ đề 3'];
+    let taxonomyLevels = ['Nhận biết', 'Thông hiểu', 'Vận dụng', 'Vận dụng cao'];
+    let matrixData = {};
+    let currentCell = null;
+
+    // Score settings with default values
+    let scoreSettings = {
+        multipleChoice: 0.25,
+        trueFalse: 1,
+        essay: 1.0,
+        percentages: {
+            'Nhận biết': 40,
+            'Thông hiểu': 30,
+            'Vận dụng': 30,
+            'Vận dụng cao': 0, // Added for completeness
+        }
+    };
+
+    // Initialize app
+    document.addEventListener('DOMContentLoaded', function() {
+        renderTopics();
+        renderMatrix();
+        updateSummaryTable();
+    });
+
+    // Topic management
+    function showTopicModal() {
+        document.getElementById('topicModal').classList.remove('hidden');
+        document.getElementById('topicNameInput').focus();
+    }
+
+    function closeTopicModal() {
+        document.getElementById('topicModal').classList.add('hidden');
+        document.getElementById('topicNameInput').value = '';
+    }
+
+    function addTopic() {
+        const input = document.getElementById('topicNameInput');
+        const topicName = input.value.trim();
+        if (!topicName) {
+            showAlert('Vui lòng nhập tên chủ đề');
+            return;
+        }
+        if (topics.includes(topicName)) {
+            showAlert('Chủ đề đã tồn tại');
+            return;
+        }
+        topics.push(topicName);
+        renderTopics();
+        renderMatrix();
+        updateSummaryTable();
+        closeTopicModal();
+        showSuccessMessage('Đã thêm chủ đề thành công!');
+    }
+
+    function removeTopic(index) {
+        showConfirmDialog('Bạn có chắc chắn muốn xóa chủ đề này?', () => {
+            const topicName = topics[index];
+            topics.splice(index, 1);
+            Object.keys(matrixData).forEach(key => {
+                if (key.startsWith(topicName + '_')) {
+                    delete matrixData[key];
+                }
+            });
+            renderTopics();
+            renderMatrix();
+            updateSummaryTable();
+            showSuccessMessage('Đã xóa chủ đề thành công!');
+        });
+    }
+
+    function renderTopics() {
+        const container = document.getElementById('topicsList');
+        if (topics.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 dark:text-gray-400">Chưa có chủ đề nào. Nhấn "Thêm Chủ đề" để bắt đầu.</p>';
+            return;
+        }
+        container.innerHTML = topics.map((topic, index) => `
+    <div class="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-3 py-1 rounded-full flex items-center space-x-2">
+    <span>${topic}</span>
+    <button onclick="removeTopic(${index})" class="text-blue-600 dark:text-blue-400 hover:text-red-500">
+    <i class="fas fa-times text-sm"></i>
+    </button>
+    </div>
+    `).join('');
+    }
+
+    // Matrix management
+    function renderMatrix() {
+        const container = document.getElementById('matrixGrid');
+        if (topics.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Thêm chủ đề để bắt đầu tạo ma trận</p>';
+            return;
+        }
+        const cols = taxonomyLevels.length + 1;
+        container.style.gridTemplateColumns = `repeat(${cols}, minmax(120px, 1fr))`;
+        let html = '';
+        html += '<div class="font-bold text-center p-3 bg-gray-100 dark:bg-gray-700 rounded">Chủ đề / Mức độ</div>';
+        taxonomyLevels.forEach(level => {
+            html += `<div class="font-bold text-center p-3 bg-gray-100 dark:bg-gray-700 rounded">${level}</div>`;
+        });
+        topics.forEach(topic => {
+            html += `<div class="font-medium p-3 bg-gray-50 dark:bg-gray-600 rounded flex items-center justify-center text-center">${topic}</div>`;
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const cellData = matrixData[cellKey] || { count: 0, notes: '' };
+                const isFilled = cellData.count > 0;
+                const questionTypes = [];
+                if (cellData.multipleChoice > 0) questionTypes.push(`TN: ${cellData.multipleChoice}`);
+                if (cellData.trueFalse > 0) questionTypes.push(`Đ/S: ${cellData.trueFalse}`);
+                if (cellData.essay > 0) questionTypes.push(`TL: ${cellData.essay}`);
+                html += `
+            <div class="matrix-cell ${isFilled ? 'filled' : ''} p-2 rounded cursor-pointer text-center flex flex-col justify-center"
+                 onclick="openCellModal('${topic}', '${level}')">
+                <div class="font-bold text-lg mb-1">${cellData.count || 0}</div>
+                ${questionTypes.length > 0 ?
+                    `<div class="text-xs space-y-1">${questionTypes.map(type => `<div class="bg-white dark:bg-gray-600 rounded px-1 py-0.5">${type}</div>`).join('')}</div>` : ''
+                }
+                ${cellData.notes ? '<div class="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate" title="Có ghi chú">📝</div>' : ''}
+            </div>
+            `;
+            });
+        });
+        container.innerHTML = html;
+    }
+
+    function openCellModal(topic, level) {
+        currentCell = { topic, level };
+        const cellKey = `${topic}_${level}`;
+        const cellData = matrixData[cellKey] || { multipleChoice: 0, trueFalse: 0, essay: 0, notes: '' };
+        document.getElementById('cellModalTitle').textContent = `${topic} - ${level}`;
+        document.getElementById('multipleChoiceCount').value = cellData.multipleChoice || 0;
+        document.getElementById('trueFalseCount').value = cellData.trueFalse || 0;
+        document.getElementById('essayCount').value = cellData.essay || 0;
+        document.getElementById('cellNotes').value = cellData.notes || '';
+        document.getElementById('questionPosition').value = cellData.position || '';
+        document.getElementById('cellModal').classList.remove('hidden');
+        document.getElementById('multipleChoiceCount').focus();
+        updateTotalQuestionsInModal();
+    }
+
+    function closeCellModal() {
+        document.getElementById('cellModal').classList.add('hidden');
+        currentCell = null;
+    }
+
+    function saveCellData() {
+        if (!currentCell) return;
+        const newData = {
+            multipleChoice: parseInt(document.getElementById('multipleChoiceCount').value) || 0,
+            trueFalse: parseInt(document.getElementById('trueFalseCount').value) || 0,
+            essay: parseInt(document.getElementById('essayCount').value) || 0,
+            notes: document.getElementById('cellNotes').value.trim(),
+            position: document.getElementById('questionPosition').value.trim(),
+        };
+        newData.count = newData.multipleChoice + newData.trueFalse + newData.essay;
+        const cellKey = `${currentCell.topic}_${currentCell.level}`;
+        const performSave = () => {
+            if (newData.count === 0 && !newData.notes && !newData.position) {
+                delete matrixData[cellKey];
+            } else {
+                matrixData[cellKey] = newData;
+            }
+            renderMatrix();
+            updateSummaryTable();
+            closeCellModal();
+            showSuccessMessage('Đã lưu dữ liệu ô ma trận!');
+        };
+        const tempMatrixData = JSON.parse(JSON.stringify(matrixData));
+        if (newData.count === 0) {
+            delete tempMatrixData[cellKey];
+        } else {
+            tempMatrixData[cellKey] = {
+                multipleChoice: newData.multipleChoice,
+                trueFalse: newData.trueFalse,
+                essay: newData.essay
+            };
+        }
+        const { grandTotalScore: projectedTotalScore, levelScores: projectedLevelScores } = calculateScores(tempMatrixData, scoreSettings);
+        let deviationMessage = '';
+        const TOLERANCE = 10.0;
+        if (projectedTotalScore > 0) {
+            taxonomyLevels.forEach(level => {
+                const projectedPercentage = (projectedLevelScores[level] / projectedTotalScore) * 100;
+                const targetPercentage = scoreSettings.percentages[level];
+                if (Math.abs(projectedPercentage - targetPercentage) > TOLERANCE) {
+                    deviationMessage += `\n- Mức độ "${level}" sẽ là ${projectedPercentage.toFixed(1)}% (mục tiêu là ${targetPercentage}%).`;
+                }
+            });
+        }
+        if (deviationMessage) {
+            const fullMessage = `Lưu thay đổi này sẽ khiến tỉ lệ điểm khác biệt đáng kể so với mục tiêu:` + deviationMessage + `\n\nBạn có muốn tiếp tục lưu không?`;
+            showConfirmDialog(fullMessage, performSave);
+        } else {
+            performSave();
+        }
+    }
+    
+    function calculateScores(data, settings) {
+        const levelScores = {};
+        taxonomyLevels.forEach(level => levelScores[level] = 0);
+        topics.forEach(topic => {
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const cellData = data[cellKey];
+                if (cellData) {
+                    let cellScore = 0;
+                    cellScore += (cellData.multipleChoice || 0) * settings.multipleChoice;
+                    cellScore += (cellData.trueFalse || 0) * settings.trueFalse;
+                    cellScore += (cellData.essay || 0) * settings.essay;
+                    levelScores[level] += cellScore;
+                }
+            });
+        });
+        const grandTotalScore = Object.values(levelScores).reduce((sum, score) => sum + score, 0);
+        return { grandTotalScore, levelScores };
+    }
+
+    function updateSummaryTable() {
+        const tbody = document.getElementById('summaryTableBody');
+        let html = '';
+        document.getElementById('knowledgePercent').textContent = `(${scoreSettings.percentages['Nhận biết']}%)`;
+        document.getElementById('comprehensionPercent').textContent = `(${scoreSettings.percentages['Thông hiểu']}%)`;
+        document.getElementById('applicationPercent').textContent = `(${scoreSettings.percentages['Vận dụng']}%)`;
+        topics.forEach(topic => {
+            const counts = taxonomyLevels.map(level => {
+                const cellKey = `${topic}_${level}`;
+                return matrixData[cellKey]?.count || 0;
+            });
+            const total = counts.reduce((sum, count) => sum + count, 0);
+            let topicScore = 0;
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const cellData = matrixData[cellKey];
+                if (cellData) {
+                    topicScore += (cellData.multipleChoice || 0) * scoreSettings.multipleChoice;
+                    topicScore += (cellData.trueFalse || 0) * scoreSettings.trueFalse;
+                    topicScore += (cellData.essay || 0) * scoreSettings.essay;
+                }
+            });
+            html += `
+        <tr>
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 font-medium">${topic}</td>
+            ${counts.map(count => `<td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">${count}</td>`).join('')}
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center font-bold">${total}</td>
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center font-bold text-blue-600 dark:text-blue-400">${topicScore.toFixed(2)}</td>
+        </tr>
+        `;
+        });
+        const totalCounts = taxonomyLevels.map(level => {
+            return topics.reduce((sum, topic) => {
+                const cellKey = `${topic}_${level}`;
+                return sum + (matrixData[cellKey]?.count || 0);
+            }, 0);
+        });
+        const { grandTotalScore, levelScores } = calculateScores(matrixData, scoreSettings);
+        const levelScoresArray = taxonomyLevels.map(level => levelScores[level]);
+        const grandTotalQuestions = totalCounts.reduce((sum, count) => sum + count, 0);
+        const actualScorePercentages = levelScoresArray.map(score => {
+            return grandTotalScore > 0 ? ((score / grandTotalScore) * 100).toFixed(1) : 0;
+        });
+        html += `
+        <tr class="bg-gray-100 dark:bg-gray-700 font-bold">
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2">Tổng cộng</td>
+            ${totalCounts.map((count, index) => `
+                <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">
+                    ${count} câu<br>
+                    <span class="font-normal">${levelScoresArray[index].toFixed(2)} điểm</span><br>
+                    <span class="text-xs text-green-600 dark:text-green-400 font-bold">(${actualScorePercentages[index]}%)</span>
+                </td>
+            `).join('')}
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">${grandTotalQuestions}</td>
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center text-green-600 dark:text-green-400">${grandTotalScore.toFixed(2)}</td>
+        </tr>
+        `;
+        tbody.innerHTML = html;
+    }
+
+    // AI Integration
+    async function generateAITest() {
+        const totalQuestions = Object.values(matrixData).reduce((sum, cell) => sum + (cell.count || 0), 0);
+        if (totalQuestions === 0) {
+            showAlert('Vui lòng thêm ít nhất một câu hỏi vào ma trận trước khi tạo đề thi bằng AI');
+            return;
+        }
+        document.getElementById('aiModal').classList.remove('hidden');
+        document.getElementById('aiLoadingState').classList.remove('hidden');
+        document.getElementById('aiContent').classList.add('hidden');
+        const matrixSummary = generateMatrixSummary();
+        const apiKey = "AIzaSyCaUvSJx7Zn_qmYXdqlynADWR9YpcaxmSs";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        const prompt = `Làm ơn tạo một đề kiểm tra hoàn chỉnh dựa trên ma trận và các thông tin chi tiết dưới đây:
+
+	${matrixSummary}
+
+	Yêu cầu cụ thể:
+	1.  **Số lượng và loại câu hỏi:** Tạo chính xác số lượng câu hỏi cho mỗi loại (Trắc nghiệm 4 đáp án, Đúng/Sai, Tự luận) theo từng chủ đề và mức độ đã quy định trong ma trận.
+	2.  **Mức độ nhận thức:** Câu hỏi phải phản ánh đúng mức độ yêu cầu (Nhận biết, Thông hiểu, Vận dụng).
+    	* **Nhận biết:** Câu hỏi yêu cầu nhớ lại, nhận dạng thông tin.
+    	* **Thông hiểu:** Câu hỏi yêu cầu giải thích, so sánh, tóm tắt.
+    	* **Vận dụng:** Câu hỏi yêu cầu áp dụng kiến thức vào tình huống mới, giải quyết vấn đề.
+	3.  **Nội dung:** Bám sát vào tên chủ đề và các ghi chú (nếu có) để tạo câu hỏi phù hợp.
+	4.  **Đáp án:** Cung cấp đáp án đầy đủ và chi tiết ngay sau phần đề thi. Đối với câu trắc nghiệm, chỉ rõ đáp án đúng. Đối với tự luận, đưa ra gợi ý trả lời hoặc dàn ý chi tiết.
+	5.  **Định dạng:** Trình bày đề thi và đáp án một cách chuyên nghiệp, sạch sẽ bằng cách sử dụng Markdown. Phân chia rõ ràng các phần: "ĐỀ KIỂM TRA" và "ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM".
+
+	Hãy bắt đầu tạo đề thi.`;
+        const payload = { contents: [{ parts: [{ text: prompt }] }] };
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error.message || `Lỗi API: ${response.status}`);
+            }
+            const result = await response.json();
+            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (generatedText) {
+                document.getElementById('aiLoadingState').classList.add('hidden');
+                document.getElementById('aiContent').classList.remove('hidden');
+                document.getElementById('aiGeneratedTest').innerHTML = marked.parse(generatedText);
+            } else {
+                throw new Error("Không nhận được nội dung từ AI.");
+            }
+        } catch (err) {
+            console.error('Lỗi gọi API Gemini:', err);
+            document.getElementById('aiGeneratedTest').innerHTML = `<div class="text-red-500">Lỗi: ${err.message}</div>`;
+        }
+    }
+
+    function generateMatrixSummary() {
+        let summary = "MA TRẬN ĐỀ KIỂM TRA\n\n";
+        summary += `**I. THIẾT LẬP ĐIỂM SỐ:**\n`;
+        summary += `- Trắc nghiệm 4 đáp án: ${scoreSettings.multipleChoice} điểm/câu\n`;
+        summary += `- Đúng/Sai (4 ý): ${scoreSettings.trueFalse} điểm/câu\n`;
+        summary += `- Tự luận: ${scoreSettings.essay} điểm/câu\n\n`;
+        summary += `**II. TỈ LỆ MỨC ĐỘ MONG MUỐN:**\n`;
+        taxonomyLevels.forEach(level => {
+            if(scoreSettings.percentages[level]) {
+                summary += `- ${level}: ${scoreSettings.percentages[level]}%\n`;
+            }
+        });
+        summary += `\n**III. MA TRẬN CHI TIẾT:**\n\n`;
+        topics.forEach(topic => {
+            summary += `**Chủ đề: ${topic}**\n`;
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const cellData = matrixData[cellKey];
+                if (cellData && cellData.count > 0) {
+                    summary += `- **${level}:**\n`;
+                    if (cellData.multipleChoice > 0) summary += `  - Trắc nghiệm 4 đáp án: ${cellData.multipleChoice} câu\n`;
+                    if (cellData.trueFalse > 0) summary += `  - Đúng/Sai: ${cellData.trueFalse} câu (mỗi câu 4 ý)\n`;
+                    if (cellData.essay > 0) summary += `  - Tự luận: ${cellData.essay} câu\n`;
+                    if (cellData.position) summary += `  - Vị trí gợi ý trong đề: ${cellData.position}\n`;
+                    if (cellData.notes) summary += `  - Ghi chú/Yêu cầu cần đạt: ${cellData.notes}\n`;
+                }
+            });
+            summary += `\n`;
+        });
+        return summary;
+    }
+
+    function regenerateTest() { generateAITest(); }
+    function closeAIModal() { document.getElementById('aiModal').classList.add('hidden'); }
+
+    // Export/Import functions
+    function exportMatrix() {
+        const data = { topics, matrixData, scoreSettings, timestamp: new Date().toISOString() };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ma-tran-de-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showSuccessMessage('Đã xuất ma trận thành công!');
+    }
+
+    function importMatrix() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.topics && data.matrixData && data.scoreSettings) {
+                        topics = data.topics;
+                        matrixData = data.matrixData;
+                        scoreSettings = data.scoreSettings;
+                        renderTopics();
+                        renderMatrix();
+                        updateSummaryTable();
+                        showSuccessMessage('Đã nhập ma trận thành công!');
+                    } else { showAlert('File không đúng định dạng.'); }
+                } catch (err) { showAlert('Lỗi đọc file: ' + err.message); }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
+
+    function exportTest() {
+        const testContent = document.getElementById('aiGeneratedTest').innerHTML;
+        const blob = new Blob([testContent], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `de-thi-${new Date().toISOString().split('T')[0]}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showSuccessMessage('Đã xuất đề thi thành công!');
+    }
+
+    function exportExcel() {
+        if (topics.length === 0) {
+            showAlert('Chưa có dữ liệu ma trận để xuất file Excel.');
+            return;
+        }
+        const wb = XLSX.utils.book_new();
+        // Summary Sheet
+        const summary_ws_data = [["Chủ đề", "Nhận biết (Câu)", "Nhận biết (Điểm)", "Thông hiểu (Câu)", "Thông hiểu (Điểm)", "Vận dụng (Câu)", "Vận dụng (Điểm)", "Vận dụng cao (Câu)", "Vận dụng cao (Điểm)", "Tổng câu", "Tổng điểm"]];
+        topics.forEach(topic => {
+            const row = [topic];
+            let total_q = 0, total_s = 0;
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const d = matrixData[cellKey];
+                const q = d?.count || 0;
+                const s = d ? (d.multipleChoice * scoreSettings.multipleChoice) + (d.trueFalse * scoreSettings.trueFalse) + (d.essay * scoreSettings.essay) : 0;
+                row.push(q, s);
+                total_q += q;
+                total_s += s;
+            });
+            row.push(total_q, total_s);
+            summary_ws_data.push(row);
+        });
+        const summary_ws = XLSX.utils.aoa_to_sheet(summary_ws_data);
+        XLSX.utils.book_append_sheet(wb, summary_ws, "Ma Trận Tổng Hợp");
+        // Detailed Sheet
+        const detailed_ws_data = [["Chủ đề", "Mức độ", "Trắc nghiệm", "Đúng/Sai", "Tự luận", "Tổng câu", "Điểm", "Vị trí", "Ghi chú"]];
+        topics.forEach(topic => {
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const d = matrixData[cellKey];
+                if (d && d.count > 0) {
+                    const s = (d.multipleChoice * scoreSettings.multipleChoice) + (d.trueFalse * scoreSettings.trueFalse) + (d.essay * scoreSettings.essay);
+                    detailed_ws_data.push([topic, level, d.multipleChoice || 0, d.trueFalse || 0, d.essay || 0, d.count, s, d.position || "", d.notes || ""]);
+                }
+            });
+        });
+        const detailed_ws = XLSX.utils.aoa_to_sheet(detailed_ws_data);
+        XLSX.utils.book_append_sheet(wb, detailed_ws, "Ma Trận Chi Tiết");
+        XLSX.writeFile(wb, `MaTranDeKiemTra_${new Date().toISOString().split('T')[0]}.xlsx`);
+        showSuccessMessage('Đã xuất file Excel thành công!');
+    }
+
+    function clearAll() {
+        showConfirmDialog('Bạn có chắc chắn muốn xóa tất cả dữ liệu?', () => {
+            topics = [];
+            matrixData = {};
+            renderTopics();
+            renderMatrix();
+            updateSummaryTable();
+            showSuccessMessage('Đã xóa tất cả dữ liệu!');
+        });
+    }
+
+    // --- NEW: Specification Library Functions ---
+    function openSpecificationModal() {
+        if (!currentCell) return;
+        const level = currentCell.level;
+        document.getElementById('specificationModalTitle').textContent = `Thư viện Đặc tả - Mức độ: ${level}`;
+        const container = document.getElementById('specificationModalBody');
+        container.innerHTML = '';
+        
+        let contentHtml = '';
+        specificationLibraryData.forEach(grade => {
+            contentHtml += `<h2 class="text-2xl font-bold my-4 text-primary">${grade.grade}</h2>`;
+            grade.content.forEach(topic => {
+                const topicId = `topic-${grade.grade}-${topic.topic}`.replace(/\s/g, '');
+                let topicContent = '';
+                topic.units.forEach(unit => {
+                    if (unit.levels[level] && unit.levels[level].length > 0) {
+                        const unitId = `${topicId}-unit-${unit.name}`.replace(/\s/g, '');
+                        let unitContent = `<div class="p-2 border-l-2 border-gray-200 dark:border-gray-600">`;
+                        unit.levels[level].forEach((spec, index) => {
+                            const specId = `${unitId}-spec-${index}`;
+                            unitContent += `
+                                <div class="flex items-start my-1 spec-item">
+                                    <input type="checkbox" id="${specId}" class="mr-2 mt-1 flex-shrink-0" data-spec-text="${spec}">
+                                    <label for="${specId}" class="text-sm cursor-pointer">${spec}</label>
+                                </div>`;
+                        });
+                        unitContent += `</div>`;
+                        topicContent += `<details class="unit-details mb-1"><summary class="font-semibold cursor-pointer py-1">${unit.name}</summary>${unitContent}</details>`;
+                    }
+                });
+                if (topicContent) {
+                    contentHtml += `<details class="topic-details bg-gray-50 dark:bg-gray-700 p-2 rounded mb-2"><summary class="text-lg font-bold cursor-pointer">${topic.topic}</summary><div class="pl-4 mt-2">${topicContent}</div></details>`;
+                }
+            });
+        });
+        container.innerHTML = contentHtml || `<p class="text-center text-gray-500">Không có đặc tả nào cho mức độ ${level}.</p>`;
+        document.getElementById('specificationModal').classList.remove('hidden');
+        document.getElementById('specSearchInput').value = '';
+    }
+
+    function closeSpecificationModal() {
+        document.getElementById('specificationModal').classList.add('hidden');
+    }
+
+    function applySpecifications() {
+        const selectedSpecs = [];
+        document.querySelectorAll('#specificationModalBody input[type="checkbox"]:checked').forEach(checkbox => {
+            selectedSpecs.push(checkbox.getAttribute('data-spec-text'));
+        });
+        if (selectedSpecs.length > 0) {
+            const notesTextarea = document.getElementById('cellNotes');
+            const existingNotes = notesTextarea.value.trim();
+            const newNotes = selectedSpecs.map(spec => `- ${spec.startsWith('-') ? spec.substring(1).trim() : spec}`).join('\n');
+            notesTextarea.value = existingNotes ? `${existingNotes}\n${newNotes}` : newNotes;
+        }
+        closeSpecificationModal();
+    }
+    
+    function filterSpecifications() {
+        const input = document.getElementById('specSearchInput');
+        const filter = input.value.toUpperCase();
+        const modalBody = document.getElementById('specificationModalBody');
+        const specItems = modalBody.getElementsByClassName('spec-item');
+        
+        for (let i = 0; i < specItems.length; i++) {
+            const label = specItems[i].getElementsByTagName('label')[0];
+            const txtValue = label.textContent || label.innerText;
+            if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                specItems[i].style.display = "";
+            } else {
+                specItems[i].style.display = "none";
+            }
+        }
+        // Logic to show/hide parent details tags based on search results
+    }
+
+    // Utility functions
+    function showAlert(message) {
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.innerHTML = `<div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4"><h3 class="text-lg font-bold mb-4">Thông báo</h3><p>${message}</p><div class="flex justify-end mt-4"><button onclick="this.closest('.fixed').remove()" class="btn-primary">Đóng</button></div></div>`;
+        document.body.appendChild(modal);
+    }
+
+    function showConfirmDialog(message, onConfirm) {
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.innerHTML = `<div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4"><h3 class="text-lg font-bold mb-4">Xác nhận</h3><p class="whitespace-pre-line">${message}</p><div class="flex justify-end mt-4 space-x-2"><button class="btn-outline" onclick="this.closest('.fixed').remove()">Hủy</button><button id="confirmBtn" class="btn-danger">Xác nhận</button></div></div>`;
+        document.body.appendChild(modal);
+        document.getElementById('confirmBtn').onclick = () => {
+            modal.remove();
+            onConfirm();
+        };
+    }
+
+    function showSuccessMessage(message) {
+        document.getElementById('successMessage').textContent = message;
+        document.getElementById('successModal').classList.remove('hidden');
+    }
+
+    function closeSuccessModal() {
+        document.getElementById('successModal').classList.add('hidden');
+    }
+
+    function updateTotalQuestionsInModal() {
+        const mc = parseInt(document.getElementById('multipleChoiceCount').value) || 0;
+        const tf = parseInt(document.getElementById('trueFalseCount').value) || 0;
+        const essay = parseInt(document.getElementById('essayCount').value) || 0;
+        document.getElementById('totalQuestions').textContent = mc + tf + essay;
+        document.getElementById('totalScore').textContent = ((mc * scoreSettings.multipleChoice) + (tf * scoreSettings.trueFalse) + (essay * scoreSettings.essay)).toFixed(2);
+    }
+
+    // Score Settings Modal Functions
+    function showScoreModal() {
+        document.getElementById('scoreMultipleChoice').value = scoreSettings.multipleChoice;
+        document.getElementById('scoreTrueFalse').value = scoreSettings.trueFalse;
+        document.getElementById('scoreEssay').value = scoreSettings.essay;
+        document.getElementById('percentKnowledge').value = scoreSettings.percentages['Nhận biết'];
+        document.getElementById('percentComprehension').value = scoreSettings.percentages['Thông hiểu'];
+        document.getElementById('percentApplication').value = scoreSettings.percentages['Vận dụng'];
+        document.getElementById('scoreModal').classList.remove('hidden');
+        updateScoreCalculationInModal();
+        updatePercentageTotalInModal();
+    }
+
+    function closeScoreModal() {
+        document.getElementById('scoreModal').classList.add('hidden');
+    }
+
+    function saveScoreSettings() {
+        const pK = parseInt(document.getElementById('percentKnowledge').value) || 0;
+        const pC = parseInt(document.getElementById('percentComprehension').value) || 0;
+        const pA = parseInt(document.getElementById('percentApplication').value) || 0;
+        if (pK + pC + pA !== 100) {
+            showAlert('Tổng tỉ lệ các mức độ phải bằng 100%');
+            return;
+        }
+        scoreSettings.multipleChoice = parseFloat(document.getElementById('scoreMultipleChoice').value) || 0.25;
+        scoreSettings.trueFalse = parseFloat(document.getElementById('scoreTrueFalse').value) || 1;
+        scoreSettings.essay = parseFloat(document.getElementById('scoreEssay').value) || 1.0;
+        scoreSettings.percentages['Nhận biết'] = pK;
+        scoreSettings.percentages['Thông hiểu'] = pC;
+        scoreSettings.percentages['Vận dụng'] = pA;
+        closeScoreModal();
+        updateSummaryTable();
+        showSuccessMessage('Đã lưu thiết lập điểm số thành công!');
+    }
+
+    function updateScoreCalculationInModal() {
+        const mcScore = parseFloat(document.getElementById('scoreMultipleChoice').value) || 0;
+        const tfScore = parseFloat(document.getElementById('scoreTrueFalse').value) || 0;
+        const essayScore = parseFloat(document.getElementById('scoreEssay').value) || 0;
+        let totalMC = 0, totalTF = 0, totalEssay = 0;
+        Object.values(matrixData).forEach(cell => {
+            totalMC += cell.multipleChoice || 0;
+            totalTF += cell.trueFalse || 0;
+            totalEssay += cell.essay || 0;
+        });
+        const totalScore = (totalMC * mcScore) + (totalTF * tfScore) + (totalEssay * essayScore);
+        document.getElementById('scoreCalculation').innerHTML = `<div>Tổng điểm dự kiến: ${totalScore.toFixed(2)} điểm</div>`;
+    }
+
+    function updatePercentageTotalInModal() {
+        const total = (parseInt(document.getElementById('percentKnowledge').value) || 0) +
+                      (parseInt(document.getElementById('percentComprehension').value) || 0) +
+                      (parseInt(document.getElementById('percentApplication').value) || 0);
+        const totalEl = document.getElementById('totalPercent');
+        totalEl.textContent = `Tổng: ${total}%`;
+        totalEl.classList.toggle('text-green-600', total === 100);
+        totalEl.classList.toggle('dark:text-green-400', total === 100);
+        totalEl.classList.toggle('text-red-600', total !== 100);
+        totalEl.classList.toggle('dark:text-red-400', total !== 100);
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        ['multipleChoiceCount', 'trueFalseCount', 'essayCount'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateTotalQuestionsInModal);
+        });
+        ['scoreMultipleChoice', 'scoreTrueFalse', 'scoreEssay'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateScoreCalculationInModal);
+        });
+        ['percentKnowledge', 'percentComprehension', 'percentApplication'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updatePercentageTotalInModal);
+        });
+    });
+</script>
+
+<style>
+    .btn-primary {
+        @apply bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors duration-200 text-base font-medium shadow-md;
+    }
+    .btn-secondary {
+        @apply bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors duration-200 text-base font-medium shadow-md;
+    }
+    .btn-outline {
+        @apply border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 text-base font-medium;
+    }
+    .btn-danger {
+        @apply bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors duration-200 text-base font-medium shadow-md;
+    }
+</style>
+</body>
+</html>
